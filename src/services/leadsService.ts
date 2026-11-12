@@ -1,4 +1,5 @@
 import { Lead, FunnelStage } from '../types';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const STORAGE_KEY = 'robusty_crm_leads_data';
 
@@ -111,7 +112,6 @@ const SEED_ROBUSTY_LEADS: Lead[] = [
     updatedAt: new Date().toISOString(),
     ultimaInteracaoAt: new Date().toISOString(),
   },
-  // Pedidos na Operação / Fábrica
   {
     id: 'ped-101',
     corretorId: 'norlando-1',
@@ -123,7 +123,7 @@ const SEED_ROBUSTY_LEADS: Lead[] = [
     veiculoAno: '2022',
     produtoNome: 'Bagageiro Fiat Fiorino FX 200 (Aba Lateral)',
     condicaoPreco: '10x',
-    valorTotal: 2400.00, // 2200 + 200 instalacao
+    valorTotal: 2400.00,
     custoInstalacao: 200.00,
     corBagageiro: 'Preto Epóxi',
     modalidade: 'Caminho B: Instalação na Loja',
@@ -185,14 +185,61 @@ function saveStoredLeads(leads: Lead[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
 }
 
-export const leadsService = {
-  async getLeads(userId?: string, role?: string): Promise<Lead[]> {
-    return getStoredLeads();
-  },
+// Mapper de banco (snake_case) para Frontend (camelCase)
+function mapDbRowToLead(row: any): Lead {
+  return {
+    id: row.id,
+    corretorId: row.corretor_id || 'norlando-1',
+    nome: row.nome,
+    telefone: row.telefone,
+    email: row.email,
+    cidadeUf: row.cidade_uf,
+    veiculoLinha: row.veiculo_linha,
+    veiculoAno: row.veiculo_ano,
+    produtoNome: row.produto_nome,
+    condicaoPreco: row.condicao_preco,
+    valorTotal: Number(row.valor_total) || 0,
+    custoInstalacao: Number(row.custo_instalacao) || 0,
+    corBagageiro: row.cor_bagageiro,
+    modalidade: row.modalidade,
+    solicitarCotacaoIgor: Boolean(row.solicitar_cotacao_igor),
+    solicitouLinkPagamento: Boolean(row.solicitou_link_pagamento),
+    necessitaNotaFiscal: Boolean(row.necessita_nota_fiscal),
+    responsavelAtual: row.responsavel_atual,
+    funilAtual: row.funil_atual || 'leads',
+    statusFunil: row.status_funil as FunnelStage,
+    origemLead: row.origem,
+    observacoes: row.observacoes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ultimaInteracaoAt: row.ultima_interacao_at || row.created_at
+  };
+}
 
-  async getLeadById(id: string): Promise<Lead | null> {
-    const leads = getStoredLeads();
-    return leads.find(l => l.id === id) || null;
+export const leadsService = {
+  async getLeads(): Promise<Lead[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .order('ultima_interacao_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          const mapped = data.map(mapDbRowToLead);
+          saveStoredLeads(mapped);
+          return mapped;
+        } else if (!error && data && data.length === 0) {
+          // Se o banco estiver vazio pela primeira vez, insere as sementes da Robusty no Supabase
+          for (const s of SEED_ROBUSTY_LEADS) {
+            await this.createLead(s);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar leads do Supabase, usando fallback local:', err);
+      }
+    }
+    return getStoredLeads();
   },
 
   async createLead(newLeadData: Partial<Lead>): Promise<Lead> {
@@ -225,6 +272,39 @@ export const leadsService = {
       ultimaInteracaoAt: new Date().toISOString(),
     };
 
+    if (isSupabaseConfigured) {
+      try {
+        const payload = {
+          nome: lead.nome,
+          telefone: lead.telefone,
+          email: lead.email,
+          cidade_uf: lead.cidadeUf,
+          veiculo_linha: lead.veiculoLinha,
+          veiculo_ano: lead.veiculoAno,
+          produto_nome: lead.produtoNome,
+          condicao_preco: lead.condicaoPreco,
+          valor_total: lead.valorTotal,
+          custo_instalacao: lead.custoInstalacao,
+          cor_bagageiro: lead.corBagageiro,
+          modalidade: lead.modalidade,
+          solicitar_cotacao_igor: lead.solicitarCotacaoIgor,
+          solicitou_link_pagamento: lead.solicitouLinkPagamento,
+          necessita_nota_fiscal: lead.necessitaNotaFiscal,
+          responsavel_atual: lead.responsavelAtual,
+          funil_atual: lead.funilAtual,
+          status_funil: lead.statusFunil,
+          origem: lead.origemLead,
+          observacoes: lead.observacoes
+        };
+        const { data, error } = await supabase.from('leads').insert([payload]).select().single();
+        if (!error && data) {
+          lead.id = data.id;
+        }
+      } catch (err) {
+        console.warn('Erro ao salvar no Supabase:', err);
+      }
+    }
+
     leads.unshift(lead);
     saveStoredLeads(leads);
     return lead;
@@ -233,17 +313,36 @@ export const leadsService = {
   async updateLead(leadId: string, updates: Partial<Lead>): Promise<Lead> {
     const leads = getStoredLeads();
     const idx = leads.findIndex(l => l.id === leadId);
-    if (idx === -1) throw new Error('Lead não encontrado');
 
     const updatedLead: Lead = {
-      ...leads[idx],
+      ...(idx !== -1 ? leads[idx] : {} as Lead),
       ...updates,
       updatedAt: new Date().toISOString(),
       ultimaInteracaoAt: new Date().toISOString()
     };
 
-    leads[idx] = updatedLead;
-    saveStoredLeads(leads);
+    if (idx !== -1) {
+      leads[idx] = updatedLead;
+      saveStoredLeads(leads);
+    }
+
+    if (isSupabaseConfigured && !leadId.startsWith('lead-') && !leadId.startsWith('ped-')) {
+      try {
+        const dbUpdates: any = {};
+        if (updates.statusFunil) dbUpdates.status_funil = updates.statusFunil;
+        if (updates.funilAtual) dbUpdates.funil_atual = updates.funilAtual;
+        if (updates.responsavelAtual) dbUpdates.responsavel_atual = updates.responsavelAtual;
+        if (updates.valorTotal !== undefined) dbUpdates.valor_total = updates.valorTotal;
+        if (updates.produtoNome) dbUpdates.produto_nome = updates.produtoNome;
+        if (updates.observacoes !== undefined) dbUpdates.observacoes = updates.observacoes;
+        if (updates.modalidade) dbUpdates.modalidade = updates.modalidade;
+
+        await supabase.from('leads').update(dbUpdates).eq('id', leadId);
+      } catch (err) {
+        console.warn('Erro ao atualizar no Supabase:', err);
+      }
+    }
+
     return updatedLead;
   },
 
@@ -251,9 +350,16 @@ export const leadsService = {
     const leads = getStoredLeads();
     const filtered = leads.filter(l => l.id !== leadId);
     saveStoredLeads(filtered);
+
+    if (isSupabaseConfigured && !leadId.startsWith('lead-') && !leadId.startsWith('ped-')) {
+      try {
+        await supabase.from('leads').delete().eq('id', leadId);
+      } catch (err) {
+        console.warn('Erro ao deletar no Supabase:', err);
+      }
+    }
   },
 
-  // Ação especial do fluxograma: Converter Lead Ganho em Pedido de Produção
   async convertLeadToOrder(leadId: string): Promise<Lead> {
     const leads = getStoredLeads();
     const lead = leads.find(l => l.id === leadId);
@@ -269,6 +375,37 @@ export const leadsService = {
       updatedAt: new Date().toISOString(),
       ultimaInteracaoAt: new Date().toISOString()
     };
+
+    if (isSupabaseConfigured) {
+      try {
+        const payload = {
+          nome: newOrder.nome,
+          telefone: newOrder.telefone,
+          email: newOrder.email,
+          cidade_uf: newOrder.cidadeUf,
+          veiculo_linha: newOrder.veiculoLinha,
+          veiculo_ano: newOrder.veiculoAno,
+          produto_nome: newOrder.produtoNome,
+          condicao_preco: newOrder.condicaoPreco,
+          valor_total: newOrder.valorTotal,
+          custo_instalacao: newOrder.custoInstalacao,
+          cor_bagageiro: newOrder.corBagageiro,
+          modalidade: newOrder.modalidade,
+          solicitar_cotacao_igor: newOrder.solicitarCotacaoIgor,
+          solicitou_link_pagamento: newOrder.solicitouLinkPagamento,
+          necessita_nota_fiscal: newOrder.necessitaNotaFiscal,
+          responsavel_atual: newOrder.responsavelAtual,
+          funil_atual: 'pedidos',
+          status_funil: newOrder.statusFunil,
+          origem: newOrder.origemLead,
+          observacoes: newOrder.observacoes
+        };
+        const { data } = await supabase.from('leads').insert([payload]).select().single();
+        if (data) newOrder.id = data.id;
+      } catch (err) {
+        console.warn('Erro ao criar pedido no Supabase:', err);
+      }
+    }
 
     leads.unshift(newOrder);
     saveStoredLeads(leads);
