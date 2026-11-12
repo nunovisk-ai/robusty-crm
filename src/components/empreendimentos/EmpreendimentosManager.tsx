@@ -1,343 +1,153 @@
 import React, { useState } from 'react';
-import { Empreendimento, empreendimentosService } from '../../services/empreendimentosService';
 import { 
-  Building2, 
-  Plus, 
-  MapPin, 
-  ExternalLink, 
+  Package, 
   Search, 
-  X 
+  Plus, 
+  Car, 
+  Check, 
+  FileText, 
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { CATALOGO_ROBUSTY_2026, ProdutoRobusty } from '../../services/empreendimentosService';
+import { currencyFormatter } from '../../utils/currencyFormatter';
 
 interface EmpreendimentosManagerProps {
-  empreendimentos: Empreendimento[];
-  isLoading?: boolean;
-  onRefresh: () => void;
+  onSelectProductForLead?: (produto: ProdutoRobusty) => void;
 }
 
 export const EmpreendimentosManager: React.FC<EmpreendimentosManagerProps> = ({
-  empreendimentos,
-  isLoading = false,
-  onRefresh
+  onSelectProductForLead
 }) => {
-  const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [vehicleFilter, setVehicleFilter] = useState<string>('ALL');
 
-  // New Development form state
-  const [novoNome, setNovoNome] = useState('');
-  const [novaConstrutora, setNovaConstrutora] = useState('');
-  const [novaRegiao, setNovaRegiao] = useState('');
-  const [novoEndereco, setNovoEndereco] = useState('');
-  const [novoPrecoDe, setNovoPrecoDe] = useState<number | ''>('');
-  const [novoPrecoAte, setNovoPrecoAte] = useState<number | ''>('');
-  const [novoLinkBook, setNovoLinkBook] = useState('');
-
-  const filteredEmps = empreendimentos.filter(emp => 
-    emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.construtora.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.regiaoSp.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!novoNome.trim() || !novaConstrutora.trim()) {
-      alert('Nome e construtora são obrigatórios.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await empreendimentosService.createEmpreendimento({
-        nome: novoNome.trim(),
-        construtora: novaConstrutora.trim(),
-        regiaoSp: novaRegiao.trim() || 'São Paulo - SP',
-        enderecoPlantao: novoEndereco.trim() || 'Plantão de Vendas - São Paulo, SP',
-        faixaPrecoDe: Number(novoPrecoDe) || 0,
-        faixaPrecoAte: Number(novoPrecoAte) || undefined,
-        linkBookPdf: novoLinkBook.trim() || undefined
-      });
-
-      setIsModalOpen(false);
-      // Reset form
-      setNovoNome('');
-      setNovaConstrutora('');
-      setNovaRegiao('');
-      setNovoEndereco('');
-      setNovoPrecoDe('');
-      setNovoPrecoAte('');
-      setNovoLinkBook('');
-      onRefresh();
-    } catch (err) {
-      console.error('Error creating empreendimento:', err);
-      alert('Erro ao cadastrar empreendimento.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const filteredProducts = CATALOGO_ROBUSTY_2026.filter(p => {
+    if (vehicleFilter !== 'ALL' && p.veiculo !== vehicleFilter) return false;
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      p.nome.toLowerCase().includes(term) ||
+      p.veiculo.toLowerCase().includes(term) ||
+      p.medidas.toLowerCase().includes(term)
+    );
+  });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6 select-none">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Top Banner */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Catálogo de Empreendimentos</h2>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-brand-700 rounded-full text-xs font-bold mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-brand-500" />
+            <span>CATÁLOGO OFICIAL • FEVEREIRO 2026</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+            Catálogo de Bagageiros & Acessórios Robusty
+          </h2>
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+            Modelos de alta resistência produzidos em aço carbono tubular de 1 polegada com pintura epóxi eletrostática. Tabela oficial de preços em 10x sem juros, À Vista (5% desc.) e Desconto Máximo (10% MAX).
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Search */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400">
-              <Search className="w-3.5 h-3.5" />
-            </span>
+        {/* Informações da Fábrica */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-1">
+          <p className="font-bold text-slate-800">Fábrica & Showroom São Paulo</p>
+          <p className="text-slate-500">Av. Aricanduva, 5.541 - Vila Aricanduva</p>
+          <p className="text-emerald-700 font-semibold font-mono">WhatsApp: (11) 96620-0052</p>
+        </div>
+      </div>
+
+      {/* Controles de Filtro e Busca */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+        
+        <div className="flex flex-wrap items-center gap-3 flex-1">
+          <div className="relative min-w-[240px] max-w-sm">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar empreendimento ou construtora..."
-              className="pl-8 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 w-64 shadow-2xs"
+              placeholder="Buscar modelo, veículo ou medida..."
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl pl-9 pr-3 py-2 focus:bg-white focus:border-brand-500 focus:outline-none"
             />
           </div>
 
-          {/* Add Button (Available Only to Admin) */}
-          {isAdmin && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl text-xs font-semibold shadow-xs shadow-brand-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Cadastrar Empreendimento</span>
-            </button>
-          )}
+          <select
+            value={vehicleFilter}
+            onChange={(e) => setVehicleFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 font-medium focus:bg-white focus:border-brand-500 focus:outline-none"
+          >
+            <option value="ALL">🚗 Todas as Linhas de Veículos</option>
+            <option value="Kombi">VW Kombi (MX 100, MX 200, MX 80, MX 50)</option>
+            <option value="Kangoo">Renault Kangoo / Nova Kangoo</option>
+            <option value="Fiorino">Fiat Fiorino (FX 100 / FX 200)</option>
+            <option value="Doblo">Fiat Doblo (DX 100 / DX 200)</option>
+            <option value="Jumpy/Expert/Scudo">Jumpy / Expert / Scudo</option>
+            <option value="Ducato">Fiat Ducato Max Cargo 2023</option>
+            <option value="Saveiro">VW Saveiro (Simples / Dupla)</option>
+            <option value="Decks & Acessórios">Decks, Escadas & Suportes</option>
+            <option value="Instalação & Serviços">Instalação & Serviços</option>
+          </select>
         </div>
+
+        <div className="text-xs text-slate-500 font-mono">
+          Exibindo <strong>{filteredProducts.length}</strong> produtos
+        </div>
+
       </div>
 
-      {/* Grid of Developments */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {isLoading ? (
-          [1, 2, 3, 4, 5, 6].map((i) => (
-            <div
-              key={i}
-              className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col justify-between animate-pulse h-52"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="h-4 bg-slate-200 rounded w-20" />
-                  <div className="h-4 bg-emerald-100/70 rounded w-28" />
-                </div>
-                <div className="h-5 bg-slate-200 rounded w-44 mb-3" />
-                <div className="space-y-2 mt-4">
-                  <div className="h-3 bg-slate-100 rounded w-36" />
-                  <div className="h-3 bg-slate-100 rounded w-48" />
-                </div>
-              </div>
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                <div className="h-3 bg-slate-200 rounded w-24" />
-                <div className="h-3 bg-slate-100 rounded w-16" />
-              </div>
-            </div>
-          ))
-        ) : (
-          <>
-            {filteredEmps.map(emp => (
+      {/* Grid de Produtos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredProducts.map(prod => (
           <div 
-            key={emp.id}
-            className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-brand-300 transition-all p-5 flex flex-col justify-between"
+            key={prod.id}
+            className="bg-white rounded-2xl border border-slate-200/90 hover:border-brand-500 p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
           >
             <div>
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase tracking-wider">
-                  {emp.construtora}
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-white flex items-center gap-1">
+                  <Car className="w-3 h-3" />
+                  {prod.veiculo}
                 </span>
-                <span className="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                  {emp.faixaPrecoDe > 0 ? `A partir de R$ ${emp.faixaPrecoDe.toLocaleString('pt-BR')}` : 'Sob Consulta'}
-                </span>
+                <span className="text-[11px] font-mono text-slate-500">{prod.medidas}</span>
               </div>
 
-              <h3 className="text-base font-bold text-slate-900">{emp.nome}</h3>
-              
-              <div className="mt-3 space-y-1.5 text-xs text-slate-600">
-                <p className="flex items-center gap-1.5 text-slate-500">
-                  <MapPin className="w-3.5 h-3.5 text-brand-500 flex-shrink-0" />
-                  <span>{emp.regiaoSp}</span>
-                </p>
-                <p className="text-[11px] text-slate-500 pl-5 leading-tight">
-                  {emp.enderecoPlantao}
-                </p>
+              <h3 className="font-heading font-extrabold text-sm text-slate-900 leading-snug">
+                {prod.nome}
+              </h3>
+
+              {/* Tabela de Preço Oficial */}
+              <div className="mt-3 bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">💳 10x sem juros:</span>
+                  <strong className="font-mono text-slate-900">{currencyFormatter(prod.preco10x)}</strong>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200/80 pt-1">
+                  <span className="text-emerald-700 font-semibold">💵 À vista (5% desc.):</span>
+                  <strong className="font-mono text-emerald-700">{currencyFormatter(prod.precoAvista)}</strong>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200/80 pt-1">
+                  <span className="text-brand-700 font-semibold">🔥 Com 10% (MAX):</span>
+                  <strong className="font-mono text-brand-700">{currencyFormatter(prod.precoMax10)}</strong>
+                </div>
               </div>
             </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-              {emp.linkBookPdf ? (
-                <a
-                  href={emp.linkBookPdf}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-brand-600 hover:text-brand-700 font-semibold flex items-center gap-1 transition-colors"
-                >
-                  <span>Ver na 3c Imobiliária</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              ) : (
-                <span className="text-xs text-slate-400">Sem link externo</span>
-              )}
-
-              <span className="text-[11px] text-slate-400 font-medium">
-                Ativo no CRM
-              </span>
-            </div>
+            {/* Ação */}
+            {onSelectProductForLead && (
+              <button
+                onClick={() => onSelectProductForLead(prod)}
+                className="w-full bg-brand-50 hover:bg-brand-500 text-brand-700 hover:text-white font-bold text-xs py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Usar em Novo Orçamento</span>
+              </button>
+            )}
           </div>
         ))}
-
-        {filteredEmps.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200">
-            <Building2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-xs font-semibold text-slate-600">Nenhum empreendimento encontrado.</p>
-          </div>
-        )}
-          </>
-        )}
       </div>
-
-      {/* Modal: Cadastrar Novo Empreendimento (Admin only) */}
-      {isModalOpen && isAdmin && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            
-            <div className="p-5 sm:px-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-brand-500 text-white flex items-center justify-center font-bold text-xs">
-                  <Building2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold">Cadastrar Novo Empreendimento</h3>
-                  <p className="text-[11px] text-slate-400">Área Administrativa do Grupo 3C</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="p-6 space-y-4 text-xs">
-              
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome do Empreendimento *</label>
-                <input
-                  type="text"
-                  required
-                  value={novoNome}
-                  onChange={(e) => setNovoNome(e.target.value)}
-                  placeholder="Ex: Reserva Tatuapé"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Construtora / Incorporadora *</label>
-                  <input
-                    type="text"
-                    required
-                    value={novaConstrutora}
-                    onChange={(e) => setNovaConstrutora(e.target.value)}
-                    placeholder="Ex: Cury, Cyrela, MRV"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Bairro / Região em SP *</label>
-                  <input
-                    type="text"
-                    required
-                    value={novaRegiao}
-                    onChange={(e) => setNovaRegiao(e.target.value)}
-                    placeholder="Ex: Itaquera - Zona Leste"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Endereço do Plantão / Stand de Vendas</label>
-                <input
-                  type="text"
-                  value={novoEndereco}
-                  onChange={(e) => setNovoEndereco(e.target.value)}
-                  placeholder="Ex: Av. Radial Leste, 2500 - Tatuapé, SP"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Preço Inicial (R$)</label>
-                  <input
-                    type="number"
-                    step="1000"
-                    value={novoPrecoDe}
-                    onChange={(e) => setNovoPrecoDe(e.target.value ? Number(e.target.value) : '')}
-                    placeholder="Ex: 220000"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Preço Máximo (R$)</label>
-                  <input
-                    type="number"
-                    step="1000"
-                    value={novoPrecoAte}
-                    onChange={(e) => setNovoPrecoAte(e.target.value ? Number(e.target.value) : '')}
-                    placeholder="Ex: 340000"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Link do Book PDF ou Página Oficial</label>
-                <input
-                  type="url"
-                  value={novoLinkBook}
-                  onChange={(e) => setNovoLinkBook(e.target.value)}
-                  placeholder="https://www.3cimobiliaria.com.br/nome-imovel"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl text-xs font-semibold shadow-xs shadow-brand-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? 'Cadastrando...' : 'Cadastrar Empreendimento'}</span>
-                </button>
-              </div>
-
-            </form>
-
-          </div>
-        </div>
-      )}
 
     </div>
   );

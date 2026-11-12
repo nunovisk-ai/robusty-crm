@@ -3,7 +3,7 @@ import { Lead, FunnelStage } from '../../types';
 import { 
   Search, 
   UserPlus, 
-  Building2, 
+  Package, 
   RotateCw, 
   ArrowLeft, 
   ArrowRight,
@@ -11,9 +11,13 @@ import {
   Calendar,
   AlertTriangle,
   FileText,
-  Check
+  Check,
+  Truck,
+  Car,
+  Filter
 } from 'lucide-react';
 import { WhatsAppIcon } from '../icons/WhatsAppIcon';
+import { currencyFormatter } from '../../utils/currencyFormatter';
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -24,82 +28,46 @@ interface KanbanBoardProps {
   onMoveLead: (leadId: string, newStatus: FunnelStage) => void;
   onScheduleVisit?: (lead: Lead) => void;
   onOpenChat?: (leadId: string) => void;
+  activeFunnelType: 'leads' | 'pedidos';
+  onFunnelTypeChange: (type: 'leads' | 'pedidos') => void;
+  onConvertToOrder?: (leadId: string) => void;
 }
 
 interface ColumnConfig {
   id: FunnelStage;
   title: string;
-  color: string;
   badgeBg: string;
   badgeText: string;
   dotColor: string;
+  topBorder: string;
+  responsible: 'Norlando' | 'Igor' | 'Loja';
 }
 
-const COLUMNS: ColumnConfig[] = [
-  {
-    id: 'novo_lead',
-    title: 'Novo Lead',
-    color: 'border-blue-200',
-    badgeBg: 'bg-blue-50',
-    badgeText: 'text-blue-700',
-    dotColor: 'bg-blue-500'
-  },
-  {
-    id: 'em_atendimento',
-    title: 'Em Atendimento',
-    color: 'border-orange-200',
-    badgeBg: 'bg-orange-50',
-    badgeText: 'text-brand-700',
-    dotColor: 'bg-brand-500'
-  },
-  {
-    id: 'visita_agendada',
-    title: 'Visita Agendada',
-    color: 'border-purple-200',
-    badgeBg: 'bg-purple-50',
-    badgeText: 'text-purple-700',
-    dotColor: 'bg-purple-500'
-  },
-  {
-    id: 'aguardando_docs',
-    title: 'Aguardando Docs',
-    color: 'border-amber-200',
-    badgeBg: 'bg-amber-50',
-    badgeText: 'text-amber-700',
-    dotColor: 'bg-amber-500'
-  },
-  {
-    id: 'analise_credito',
-    title: 'Análise de Crédito',
-    color: 'border-cyan-200',
-    badgeBg: 'bg-cyan-50',
-    badgeText: 'text-cyan-700',
-    dotColor: 'bg-cyan-500'
-  },
-  {
-    id: 'proposta',
-    title: 'Proposta',
-    color: 'border-indigo-200',
-    badgeBg: 'bg-indigo-50',
-    badgeText: 'text-indigo-700',
-    dotColor: 'bg-indigo-500'
-  },
-  {
-    id: 'venda_fechada',
-    title: 'Venda Fechada',
-    color: 'border-emerald-200',
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-700',
-    dotColor: 'bg-emerald-500'
-  },
-  {
-    id: 'descartado',
-    title: 'Descartado',
-    color: 'border-slate-200',
-    badgeBg: 'bg-slate-100',
-    badgeText: 'text-slate-600',
-    dotColor: 'bg-slate-400'
-  }
+// 1. Funil de Leads (10 etapas oficiais da Robusty)
+const LEADS_COLUMNS: ColumnConfig[] = [
+  { id: 'novo_lead', title: 'Novo Lead', badgeBg: 'bg-blue-50', badgeText: 'text-blue-700', dotColor: 'bg-blue-500', topBorder: 'border-t-blue-500', responsible: 'Norlando' },
+  { id: 'em_qualificacao', title: 'Em Qualificação', badgeBg: 'bg-cyan-50', badgeText: 'text-cyan-700', dotColor: 'bg-cyan-500', topBorder: 'border-t-cyan-500', responsible: 'Norlando' },
+  { id: 'aguardando_atendimento', title: 'Aguard. Atendimento', badgeBg: 'bg-amber-50', badgeText: 'text-amber-700', dotColor: 'bg-amber-500', topBorder: 'border-t-amber-500', responsible: 'Norlando' },
+  { id: 'aguardando_cotacao', title: 'Aguard. Cotação (Igor)', badgeBg: 'bg-blue-50', badgeText: 'text-blue-700', dotColor: 'bg-blue-600', topBorder: 'border-t-blue-600', responsible: 'Igor' },
+  { id: 'preparacao_orcamento', title: 'Prep. Orçamento', badgeBg: 'bg-orange-50', badgeText: 'text-brand-700', dotColor: 'bg-brand-500', topBorder: 'border-t-brand-500', responsible: 'Norlando' },
+  { id: 'orcamento_enviado', title: 'Orçamento Enviado', badgeBg: 'bg-indigo-50', badgeText: 'text-indigo-700', dotColor: 'bg-indigo-500', topBorder: 'border-t-indigo-500', responsible: 'Norlando' },
+  { id: 'em_negociacao', title: 'Em Negociação', badgeBg: 'bg-purple-50', badgeText: 'text-purple-700', dotColor: 'bg-purple-500', topBorder: 'border-t-purple-500', responsible: 'Norlando' },
+  { id: 'aguardando_pagamento', title: 'Aguard. Pagto / Link', badgeBg: 'bg-blue-50', badgeText: 'text-blue-700', dotColor: 'bg-blue-600', topBorder: 'border-t-blue-600', responsible: 'Igor' },
+  { id: 'venda_ganha', title: 'Venda Ganha', badgeBg: 'bg-emerald-50', badgeText: 'text-emerald-700', dotColor: 'bg-emerald-500', topBorder: 'border-t-emerald-500', responsible: 'Norlando' },
+  { id: 'venda_perdida', title: 'Venda Perdida', badgeBg: 'bg-slate-100', badgeText: 'text-slate-600', dotColor: 'bg-slate-400', topBorder: 'border-t-slate-400', responsible: 'Norlando' }
+];
+
+// 2. Funil de Pedidos & Operação (9 etapas oficiais da Robusty)
+const PEDIDOS_COLUMNS: ColumnConfig[] = [
+  { id: 'pedido_definido', title: 'Pedido Definido', badgeBg: 'bg-blue-50', badgeText: 'text-blue-700', dotColor: 'bg-blue-500', topBorder: 'border-t-blue-500', responsible: 'Norlando' },
+  { id: 'modalidade_definida', title: 'Modalidade Definida', badgeBg: 'bg-cyan-50', badgeText: 'text-cyan-700', dotColor: 'bg-cyan-500', topBorder: 'border-t-cyan-500', responsible: 'Norlando' },
+  { id: 'aguardando_preparacao', title: 'Aguard. Preparação', badgeBg: 'bg-purple-50', badgeText: 'text-purple-700', dotColor: 'bg-purple-500', topBorder: 'border-t-purple-500', responsible: 'Loja' },
+  { id: 'em_preparacao', title: 'Em Preparação', badgeBg: 'bg-purple-50', badgeText: 'text-purple-700', dotColor: 'bg-purple-600', topBorder: 'border-t-purple-600', responsible: 'Loja' },
+  { id: 'aguardando_entrega_instalacao', title: 'Aguard. Entrega/Instal.', badgeBg: 'bg-sky-50', badgeText: 'text-sky-700', dotColor: 'bg-sky-600', topBorder: 'border-t-sky-600', responsible: 'Igor' },
+  { id: 'em_entrega_instalacao', title: 'Em Entrega / Instalação', badgeBg: 'bg-sky-50', badgeText: 'text-sky-700', dotColor: 'bg-sky-600', topBorder: 'border-t-sky-600', responsible: 'Loja' },
+  { id: 'aguardando_finalizacao', title: 'Aguard. NF / Conclusão', badgeBg: 'bg-blue-50', badgeText: 'text-blue-700', dotColor: 'bg-blue-600', topBorder: 'border-t-blue-600', responsible: 'Igor' },
+  { id: 'pedido_concluido', title: 'Pedido Concluído', badgeBg: 'bg-emerald-50', badgeText: 'text-emerald-700', dotColor: 'bg-emerald-500', topBorder: 'border-t-emerald-500', responsible: 'Igor' },
+  { id: 'pedido_cancelado', title: 'Pedido Cancelado', badgeBg: 'bg-slate-100', badgeText: 'text-slate-600', dotColor: 'bg-slate-400', topBorder: 'border-t-slate-400', responsible: 'Igor' }
 ];
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -110,351 +78,352 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onNewLead,
   onMoveLead,
   onScheduleVisit,
-  onOpenChat
+  onOpenChat,
+  activeFunnelType,
+  onFunnelTypeChange,
+  onConvertToOrder
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilterEmp, setSelectedFilterEmp] = useState('all');
-  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [vehicleFilter, setVehicleFilter] = useState<string>('ALL');
+  const [ownerFilter, setOwnerFilter] = useState<string>('ALL');
+  const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
 
-  const handleTransitionLead = (leadId: string, targetStage: FunnelStage) => {
-    onMoveLead(leadId, targetStage);
-    if (targetStage === 'visita_agendada' && onScheduleVisit) {
-      const targetLead = leads.find(l => l.id === leadId);
-      if (targetLead) {
-        onScheduleVisit(targetLead);
-      }
-    }
-  };
+  const columns = activeFunnelType === 'leads' ? LEADS_COLUMNS : PEDIDOS_COLUMNS;
 
-  // Filter leads based on search and development
+  // Filtragem de itens do funil atual
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
-      lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.telefone.includes(searchTerm) ||
-      (lead.cpf && lead.cpf.includes(searchTerm)) ||
-      (lead.empreendimentoInteresse && lead.empreendimentoInteresse.toLowerCase().includes(searchTerm.toLowerCase()));
+    // 1. Funil Ativo
+    const leadFunnel = lead.funilAtual || (lead.id.startsWith('ped') ? 'pedidos' : 'leads');
+    if (leadFunnel !== activeFunnelType) return false;
 
-    const matchesEmp = selectedFilterEmp === 'all' || lead.empreendimentoInteresse === selectedFilterEmp;
+    // 2. Filtro de Responsável
+    if (ownerFilter !== 'ALL' && lead.responsavelAtual !== ownerFilter) return false;
 
-    return matchesSearch && matchesEmp;
+    // 3. Filtro de Veículo
+    if (vehicleFilter !== 'ALL' && lead.veiculoLinha !== vehicleFilter) return false;
+
+    // 4. Busca por texto
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      lead.nome?.toLowerCase().includes(term) ||
+      lead.telefone?.toLowerCase().includes(term) ||
+      lead.produtoNome?.toLowerCase().includes(term) ||
+      lead.veiculoLinha?.toLowerCase().includes(term) ||
+      lead.cidadeUf?.toLowerCase().includes(term)
+    );
   });
 
-  // Extract unique developments for filter dropdown
-  const uniqueEmps = Array.from(new Set(leads.map(l => l.empreendimentoInteresse).filter(Boolean)));
-
-  const handleDragStart = (e: React.DragEvent, leadId: string) => {
-    e.dataTransfer.setData('text/plain', leadId);
-    setDraggedLeadId(leadId);
+  const handleDragStart = (leadId: string) => {
+    setDraggingLeadId(leadId);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, targetStage: FunnelStage) => {
-    e.preventDefault();
-    const leadId = e.dataTransfer.getData('text/plain') || draggedLeadId;
-    if (leadId) {
-      handleTransitionLead(leadId, targetStage);
+  const handleDrop = (targetStage: FunnelStage) => {
+    if (draggingLeadId) {
+      onMoveLead(draggingLeadId, targetStage);
+      setDraggingLeadId(null);
     }
-    setDraggedLeadId(null);
-  };
-
-  const getNextStage = (current: FunnelStage): FunnelStage | null => {
-    const idx = COLUMNS.findIndex(c => c.id === current);
-    if (idx !== -1 && idx < COLUMNS.length - 2) {
-      return COLUMNS[idx + 1].id;
-    }
-    return null;
-  };
-
-  const getPrevStage = (current: FunnelStage): FunnelStage | null => {
-    const idx = COLUMNS.findIndex(c => c.id === current);
-    if (idx > 0 && current !== 'descartado') {
-      return COLUMNS[idx - 1].id;
-    }
-    return null;
-  };
-
-  const openWhatsApp = (e: React.MouseEvent, phone: string, name: string) => {
-    e.stopPropagation();
-    const cleanPhone = phone.replace(/\D/g, '');
-    const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    const text = encodeURIComponent(`Olá ${name}! Sou da 3C Imobiliária.`);
-    window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 overflow-hidden">
+    <div className="flex flex-col h-full bg-slate-50 min-h-[calc(100vh-4rem)] select-none">
       
-      {/* Top Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Funil de Vendas</h2>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-orange-100 text-brand-700 border border-orange-200">
-              {filteredLeads.length} {filteredLeads.length === 1 ? 'Lead' : 'Leads'}
-            </span>
+      {/* ======================================================== */}
+      {/* 1. BARRA SUPERIOR DE FILTROS E CONTROLES                 */}
+      {/* ======================================================== */}
+      <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3 space-y-3">
+        
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          
+          {/* Alternador de Funis (Leads vs Pedidos) */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              onClick={() => onFunnelTypeChange('leads')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeFunnelType === 'leads'
+                  ? 'bg-brand-500 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>1. Funil de Leads (Comercial)</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                activeFunnelType === 'leads' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {leads.filter(l => (l.funilAtual || 'leads') === 'leads').length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => onFunnelTypeChange('pedidos')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeFunnelType === 'pedidos'
+                  ? 'bg-brand-500 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>2. Funil de Pedidos (Loja & Logística)</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                activeFunnelType === 'pedidos' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {leads.filter(l => (l.funilAtual || 'leads') === 'pedidos').length}
+              </span>
+            </button>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Arraste os cards para avançar as etapas da negociação ou clique para ver a ficha completa
-          </p>
+
+          {/* Botão Novo Lead / Pedido */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onRefresh}
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-slate-200/80"
+              title="Atualizar dados"
+            >
+              <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+            </button>
+
+            <button
+              onClick={onNewLead}
+              className="py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>{activeFunnelType === 'pedidos' ? '+ Novo Pedido' : '+ Novo Lead'}</span>
+            </button>
+          </div>
+
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Linha 2: Busca e Filtros Rápidos */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-1">
           
-          {/* Search Input */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400">
-              <Search className="w-3.5 h-3.5" />
-            </span>
+          {/* Busca por Texto */}
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nome, telefone ou CPF..."
-              className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 w-56 sm:w-64 shadow-2xs transition-all"
+              placeholder="Buscar cliente, telefone, cidade..."
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-8 pr-3 py-1.5 focus:bg-white focus:border-brand-500 focus:outline-none transition-all"
             />
           </div>
 
-          {/* Development Filter */}
-          <div className="relative">
-            <select
-              value={selectedFilterEmp}
-              onChange={(e) => setSelectedFilterEmp(e.target.value)}
-              className="pl-2.5 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-slate-700 shadow-2xs cursor-pointer"
-            >
-              <option value="all">Todos os Empreendimentos</option>
-              {uniqueEmps.map(emp => (
-                <option key={emp} value={emp}>{emp}</option>
-              ))}
-            </select>
+          {/* Filtro por Responsável (Norlando / Igor / Loja) */}
+          <select
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-lg px-2.5 py-1.5 focus:bg-white focus:border-brand-500 focus:outline-none font-medium"
+          >
+            <option value="ALL">👥 Todos os Responsáveis</option>
+            <option value="Norlando">🟠 Norlando (Comercial)</option>
+            <option value="Igor">🔵 Igor (Cotação / NF / Logística)</option>
+            <option value="Loja">🟣 Loja (Preparação & Instalação)</option>
+          </select>
+
+          {/* Filtro por Veículo */}
+          <select
+            value={vehicleFilter}
+            onChange={(e) => setVehicleFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-lg px-2.5 py-1.5 focus:bg-white focus:border-brand-500 focus:outline-none font-medium"
+          >
+            <option value="ALL">🚗 Todas as Linhas de Veículos</option>
+            <option value="Kombi">VW Kombi</option>
+            <option value="Kangoo">Renault Kangoo</option>
+            <option value="Fiorino">Fiat Fiorino</option>
+            <option value="Doblo">Fiat Doblo</option>
+            <option value="Jumpy/Expert/Scudo">Jumpy / Expert / Scudo</option>
+            <option value="Ducato">Fiat Ducato</option>
+            <option value="Saveiro">VW Saveiro</option>
+            <option value="Decks & Acessórios">Decks & Acessórios</option>
+          </select>
+
+          {/* Indicador de Responsabilidade */}
+          <div className="ml-auto text-[11px] text-slate-500 hidden xl:flex items-center gap-3 bg-slate-50 px-3 py-1 rounded-lg border border-slate-200/60">
+            <span className="flex items-center gap-1 font-semibold text-brand-700"><span className="w-2 h-2 rounded-full bg-brand-500"></span> Norlando (Comercial)</span>
+            <span className="flex items-center gap-1 font-semibold text-blue-700"><span className="w-2 h-2 rounded-full bg-blue-600"></span> Igor (Gestão & NF)</span>
+            <span className="flex items-center gap-1 font-semibold text-purple-700"><span className="w-2 h-2 rounded-full bg-purple-600"></span> Loja (Instalação)</span>
           </div>
 
-          {/* Refresh Button */}
-          <button
-            onClick={onRefresh}
-            title="Atualizar leads"
-            className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-brand-600 rounded-xl hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
-          </button>
-
-          {/* New Lead Button */}
-          <button
-            onClick={onNewLead}
-            className="px-3.5 py-1.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl text-xs font-semibold shadow-xs shadow-brand-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Novo Lead</span>
-          </button>
         </div>
+
       </div>
 
-      {/* KANBAN BOARD CONTAINER (Horizontal Scroll) */}
-      <div className="flex-1 overflow-x-auto pb-4">
-        <div className="flex items-start gap-3.5 min-w-[1600px] h-full">
-
-          {COLUMNS.map(column => {
-            const columnLeads = filteredLeads.filter(lead => lead.statusFunil === column.id);
+      {/* ======================================================== */}
+      {/* 2. ÁREA DAS COLUNAS DO KANBAN                            */}
+      {/* ======================================================== */}
+      <div className="flex-1 overflow-x-auto p-4 sm:p-6">
+        <div className="flex gap-4 items-start min-h-[580px]">
+          
+          {columns.map((col, colIdx) => {
+            const colLeads = filteredLeads.filter(l => l.statusFunil === col.id);
+            const prevCol = colIdx > 0 ? columns[colIdx - 1].id : null;
+            const nextCol = colIdx < columns.length - 1 ? columns[colIdx + 1].id : null;
+            const colTotal = colLeads.reduce((acc, curr) => acc + (Number(curr.valorTotal) || 0), 0);
 
             return (
               <div
-                key={column.id}
+                key={col.id}
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, column.id)}
-                className={`w-72 flex-shrink-0 bg-slate-100/70 rounded-2xl p-3 border ${column.color} flex flex-col max-h-[calc(100vh-175px)] shadow-2xs transition-colors`}
+                onDrop={() => handleDrop(col.id)}
+                className={`w-[290px] flex-shrink-0 bg-slate-100/90 rounded-2xl border border-slate-200/90 border-t-4 ${col.topBorder} flex flex-col max-h-[calc(100vh-14rem)] shadow-2xs`}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${column.dotColor}`} />
-                    <span className="text-xs font-bold text-slate-800">{column.title}</span>
+                <div className="p-3 bg-white border-b border-slate-200/80 rounded-t-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${col.dotColor}`} />
+                      <h3 className="font-heading font-bold text-xs text-slate-800 tracking-tight">
+                        {col.title}
+                      </h3>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${col.badgeBg} ${col.badgeText}`}>
+                      {colLeads.length}
+                    </span>
                   </div>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border border-slate-200 ${column.badgeBg} ${column.badgeText}`}>
-                    {columnLeads.length}
-                  </span>
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>Total:</span>
+                    <span className="font-bold text-slate-800">{currencyFormatter(colTotal)}</span>
+                  </div>
                 </div>
 
-                {/* Cards List (Vertical Scroll) */}
-                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-                  {isLoading ? (
-                    /* Skeleton Screen for Kanban Column Cards */
-                    <div className="space-y-2.5">
-                      {[1, 2].map((k) => (
-                        <div key={k} className="p-3.5 rounded-xl border border-slate-200/90 bg-white shadow-2xs space-y-2.5 animate-pulse">
-                          <div className="flex items-center justify-between">
-                            <div className="h-3 bg-slate-200 rounded w-16" />
-                            <div className="h-2.5 bg-slate-200 rounded w-8" />
-                          </div>
-                          <div className="h-3.5 bg-slate-200 rounded w-28" />
-                          <div className="h-3 bg-slate-100 rounded w-24" />
-                          <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-                            <div className="h-3 bg-slate-100 rounded" />
-                            <div className="h-3 bg-slate-100 rounded" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <>
-                      {columnLeads.map(lead => {
-                    const next = getNextStage(lead.statusFunil);
-                    const prev = getPrevStage(lead.statusFunil);
-
-                    const isDiscarded = lead.statusFunil === 'descartado';
+                {/* Cards Container */}
+                <div className="p-2 space-y-2.5 overflow-y-auto flex-1">
+                  {colLeads.map((lead) => {
+                    const isWon = lead.statusFunil === 'venda_ganha';
 
                     return (
                       <div
                         key={lead.id}
                         draggable
-                        onDragStart={(e) => handleDragStart(e, lead.id)}
-                        onClick={() => onSelectLead(lead)}
-                        className={`p-3.5 rounded-xl border transition-all cursor-pointer group select-none relative ${
-                          isDiscarded
-                            ? 'bg-slate-100/75 border-slate-200/80 opacity-55 hover:opacity-90 grayscale-[45%] hover:grayscale-0 shadow-none'
-                            : 'bg-white border-slate-200/90 shadow-2xs hover:shadow-md hover:border-brand-300'
-                        }`}
+                        onDragStart={() => handleDragStart(lead.id)}
+                        className="bg-white p-3.5 rounded-xl border border-slate-200/90 hover:border-brand-500 shadow-2xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing group space-y-2.5"
                       >
-                        {/* Card Top: Origem & Data */}
-                        <div className="flex items-start justify-between gap-1 mb-1.5">
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 capitalize flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5 text-slate-400" />
-                            <span>{lead.origemLead || 'Sem origem'}</span>
+                        {/* Linha 1: Linha de Veículo + Responsável */}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-white flex items-center gap-1">
+                            <Car className="w-3 h-3" />
+                            {lead.veiculoLinha || 'Veículo'}
                           </span>
-
-                          <span className="text-[10px] text-slate-400">
-                            {new Date(lead.ultimaInteracaoAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                          
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            lead.responsavelAtual === 'Igor'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : lead.responsavelAtual === 'Loja'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : 'bg-orange-50 text-brand-700 border-orange-200'
+                          }`}>
+                            {lead.responsavelAtual === 'Igor' ? '🔵 Igor' : lead.responsavelAtual === 'Loja' ? '🟣 Loja' : '🟠 Norlando'}
                           </span>
                         </div>
 
-                        {/* Client Name */}
-                        <h4 className="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors leading-tight">
-                          {lead.nome}
-                        </h4>
+                        {/* Linha 2: Nome do Cliente + Valor */}
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 
+                            onClick={() => onSelectLead(lead)}
+                            className="font-heading font-bold text-xs text-slate-900 hover:text-brand-600 transition-colors cursor-pointer leading-snug line-clamp-2"
+                          >
+                            {lead.nome}
+                          </h4>
+                          <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap">
+                            {currencyFormatter(lead.valorTotal || 0)}
+                          </span>
+                        </div>
 
-                        {/* Development Interest */}
-                        {lead.empreendimentoInteresse ? (
-                          <p className="text-[11px] text-brand-600 font-medium mt-1 flex items-center gap-1">
-                            <Building2 className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{lead.empreendimentoInteresse}</span>
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-slate-400 font-normal mt-1 flex items-center gap-1">
-                            <Building2 className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">Sem empreendimento</span>
-                          </p>
-                        )}
-
-                        {/* Financial Information (Renda + FGTS) */}
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-1 text-[11px]">
-                          <div>
-                            <span className="text-[10px] text-slate-400 block">Renda:</span>
-                            <strong className="text-slate-800">
-                              {lead.rendaMensal > 0 ? `R$ ${lead.rendaMensal.toLocaleString('pt-BR')}` : 'A definir'}
-                            </strong>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 block">FGTS:</span>
-                            <strong className="text-emerald-600">
-                              {lead.fgtsValor > 0 ? `R$ ${lead.fgtsValor.toLocaleString('pt-BR')}` : 'R$ 0'}
-                            </strong>
+                        {/* Linha 3: Modelo do Bagageiro */}
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[11px] space-y-0.5">
+                          <p className="font-medium text-slate-800 truncate">{lead.produtoNome || 'Bagageiro Robusty'}</p>
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span>{lead.modalidade || 'A definir'}</span>
+                            <span className="font-mono">{lead.corBagageiro || 'Preto Epóxi'}</span>
                           </div>
                         </div>
 
-                        {/* Document Checklist & Credit Rejection Status on Card */}
-                        {lead.checklistProgress && (
-                          <div className="mt-2 flex items-center justify-between text-[10px] gap-1">
-                            {lead.checklistProgress.temRejeitado ? (
-                              <span className="font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                <AlertTriangle className="w-3 h-3 text-rose-600 flex-shrink-0" />
-                                <span>Doc Recusado</span>
-                              </span>
-                            ) : (
-                              <span className="font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                <FileText className="w-3 h-3 text-slate-500 flex-shrink-0" />
-                                <span>{lead.checklistProgress.coletados}/{lead.checklistProgress.total} Docs</span>
-                              </span>
-                            )}
+                        {/* Linha 4: Tags do Processo (Cotação Igor / Link / NF) */}
+                        <div className="flex flex-wrap gap-1">
+                          {lead.solicitarCotacaoIgor && (
+                            <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200 font-medium">
+                              📦 Cotação Igor
+                            </span>
+                          )}
+                          {lead.solicitouLinkPagamento && (
+                            <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-200 font-medium">
+                              💳 Link Pagto
+                            </span>
+                          )}
+                          {lead.necessitaNotaFiscal && (
+                            <span className="text-[9px] bg-amber-50 text-amber-800 px-1.5 py-0.2 rounded border border-amber-200 font-medium">
+                              🧾 Nota Fiscal
+                            </span>
+                          )}
+                        </div>
 
-                            {lead.checklistProgress.aprovados > 0 && (
-                              <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
-                                <Check className="w-3 h-3 flex-shrink-0" />
-                                <span>{lead.checklistProgress.aprovados} Aprovados</span>
-                              </span>
-                            )}
-                          </div>
+                        {/* Botão Mágico: Venda Ganha -> Encaminhar para Pedido de Produção */}
+                        {isWon && activeFunnelType === 'leads' && (
+                          <button
+                            onClick={() => onConvertToOrder && onConvertToOrder(lead.id)}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                          >
+                            <Truck className="w-3.5 h-3.5" />
+                            <span>➔ Enviar p/ Funil de Pedidos</span>
+                          </button>
                         )}
 
-                        {lead.motivoRejeicaoCredito && (
-                          <div className="mt-2 p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-800 leading-tight">
-                            <strong>Recusa Caixa:</strong> {lead.motivoRejeicaoCredito}
-                          </div>
-                        )}
-
-                        {/* Card Bottom: Quick Actions */}
-                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 flex-wrap">
+                        {/* Linha 5: Ações Rápidas (WhatsApp, Detalhes e Setas) */}
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (onOpenChat) onOpenChat(lead.id);
-                                else openWhatsApp(e, lead.telefone, lead.nome);
-                              }}
-                              title="Abrir conversa no WhatsApp Inbox"
-                              className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                            >
-                              <WhatsAppIcon className="w-3 h-3 text-emerald-600" />
-                              <span>WhatsApp</span>
-                            </button>
-
-                            {lead.statusFunil === 'visita_agendada' && onScheduleVisit && (
+                            {onOpenChat && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); onScheduleVisit(lead); }}
-                                className="text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                                onClick={() => onOpenChat(lead.id)}
+                                title="Abrir conversa no WhatsApp"
+                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
                               >
-                                <Calendar className="w-3 h-3 text-purple-600" />
-                                <span>Agendar</span>
+                                <WhatsAppIcon className="w-3.5 h-3.5" />
                               </button>
                             )}
+                            <button
+                              onClick={() => onSelectLead(lead)}
+                              className="text-[11px] text-slate-500 hover:text-slate-900 font-medium cursor-pointer"
+                            >
+                              Detalhes
+                            </button>
                           </div>
 
-                          {/* Fast Move Buttons */}
                           <div className="flex items-center gap-1">
-                            {prev && (
+                            {prevCol && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleTransitionLead(lead.id, prev); }}
+                                onClick={() => onMoveLead(lead.id, prevCol)}
                                 title="Voltar etapa"
-                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                                className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                               >
-                                <ArrowLeft className="w-3 h-3" />
+                                <ArrowLeft className="w-3.5 h-3.5" />
                               </button>
                             )}
-
-                            {next && (
+                            {nextCol && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleTransitionLead(lead.id, next); }}
+                                onClick={() => onMoveLead(lead.id, nextCol)}
                                 title="Avançar etapa"
-                                className="p-1 text-brand-600 hover:text-brand-700 hover:bg-orange-50 rounded-md font-bold transition-colors"
+                                className="p-1 bg-brand-50 hover:bg-brand-500 text-brand-600 hover:text-white rounded transition-colors cursor-pointer"
                               >
                                 <ArrowRight className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
                         </div>
+
                       </div>
                     );
                   })}
 
-                  {!isLoading && columnLeads.length === 0 && (
-                    <div className="h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-200/80 rounded-xl text-center p-3">
-                      <p className="text-[11px] text-slate-400 font-medium">Nenhum lead nesta etapa</p>
+                  {colLeads.length === 0 && (
+                    <div className="py-8 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200/80 rounded-xl">
+                      Nenhum card nesta etapa
                     </div>
                   )}
-                </>
-              )}
-            </div>
-
+                </div>
               </div>
             );
           })}

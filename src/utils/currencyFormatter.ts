@@ -21,6 +21,8 @@ export function formatCurrencyBRL(
   return includePrefix ? `R$ ${formatted}` : formatted;
 }
 
+export const currencyFormatter = formatCurrencyBRL;
+
 /**
  * Converte uma string de moeda digitada pelo usuário em um número puro (ex: "123.343,00" -> 123343)
  */

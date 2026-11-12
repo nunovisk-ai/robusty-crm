@@ -13,12 +13,20 @@ export default {
           200: '#fed7aa',
           300: '#fdba74',
           400: '#fb923c',
-          500: '#f68633', // Grupo 3C Orange
-          600: '#ea580c',
-          700: '#c2410c',
+          500: '#ff6701', // Robusty Orange Oficial
+          600: '#e55b00',
+          700: '#cc4f00',
           800: '#9a3412',
           900: '#7c2d12',
-          DEFAULT: '#f68633',
+          DEFAULT: '#ff6701',
+        },
+        robusty: {
+          orange: '#ff6701',
+          dark: '#14171d',
+          charcoal: '#1e232d',
+          steel: '#333b47',
+          gray: '#525d6d',
+          light: '#f4f5f8'
         },
         slate: {
           850: '#151f30',

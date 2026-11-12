@@ -1,4 +1,4 @@
-export type UserRole = 'corretor' | 'gerente' | 'admin';
+export type UserRole = 'comercial' | 'gestao' | 'loja' | 'admin' | 'corretor' | 'gerente';
 
 export interface UserProfile {
   id: string;
@@ -7,7 +7,6 @@ export interface UserProfile {
   role: UserRole;
   cargo?: string;
   phone?: string;
-  creci?: string;
   avatarUrl?: string;
   whatsappConnected?: boolean;
   status?: 'ativo' | 'inativo';
@@ -16,17 +15,34 @@ export interface UserProfile {
   createdAt?: string;
 }
 
-export type FunnelStage = 
+// Etapas do Funil de Leads da Robusty (10 etapas oficiais)
+export type LeadsFunnelStage = 
   | 'novo_lead'
-  | 'em_atendimento'
-  | 'visita_agendada'
-  | 'aguardando_docs'
-  | 'analise_credito'
-  | 'proposta'
-  | 'venda_fechada'
-  | 'descartado';
+  | 'em_qualificacao'
+  | 'aguardando_atendimento'
+  | 'aguardando_cotacao'
+  | 'preparacao_orcamento'
+  | 'orcamento_enviado'
+  | 'em_negociacao'
+  | 'aguardando_pagamento'
+  | 'venda_ganha'
+  | 'venda_perdida';
 
-export interface ChecklistItem {
+// Etapas do Funil de Pedidos & Operação da Robusty (9 etapas oficiais)
+export type PedidosFunnelStage =
+  | 'pedido_definido'
+  | 'modalidade_definida'
+  | 'aguardando_preparacao'
+  | 'em_preparacao'
+  | 'aguardando_entrega_instalacao'
+  | 'em_entrega_instalacao'
+  | 'aguardando_finalizacao'
+  | 'pedido_concluido'
+  | 'pedido_cancelado';
+
+export type FunnelStage = LeadsFunnelStage | PedidosFunnelStage | string;
+
+export interface LeadChecklistItem {
   id: string;
   leadId: string;
   codigoDoc: string;
@@ -41,6 +57,8 @@ export interface ChecklistItem {
   updatedAt: string;
 }
 
+export type ChecklistItem = LeadChecklistItem;
+
 export interface LeadDocument {
   id: string;
   leadId: string;
@@ -52,23 +70,39 @@ export interface LeadDocument {
   uploadedAt: string;
 }
 
+// Modelo de Lead / Oportunidade Robusty
 export interface Lead {
   id: string;
-  corretorId: string;
+  corretorId: string; // Vendedor / Responsável ID
   nome: string;
   telefone: string;
   email?: string;
-  cpf: string;
-  dataNascimento: string;
-  rendaMensal: number;
-  fgtsValor: number;
-  fgtsAprovado: boolean;
-  empreendimentoInteresse: string;
+  cpf?: string;
+  cidadeUf?: string;
+  
+  // Dados do Veículo & Bagageiro Robusty (Catálogo Fev/2026)
+  veiculoLinha: 'Kombi' | 'Kangoo' | 'Fiorino' | 'Doblo' | 'Jumpy/Expert/Scudo' | 'Ducato' | 'Saveiro' | 'Decks & Acessórios' | 'Outro';
+  veiculoAno?: string;
+  produtoNome: string;
+  condicaoPreco: '10x' | 'avista' | 'max10';
+  valorTotal: number;
+  custoInstalacao: number;
+  corBagageiro?: string;
+  
+  // Fluxo Operacional (Norlando • Igor • Loja)
+  modalidade: 'Caminho A: Entrega Transportadora' | 'Caminho B: Instalação na Loja' | 'A Definir';
+  solicitarCotacaoIgor: boolean;
+  solicitouLinkPagamento: boolean;
+  necessitaNotaFiscal: boolean;
+  responsavelAtual: 'Norlando' | 'Igor' | 'Loja';
+  
+  // Funil e Status
+  funilAtual: 'leads' | 'pedidos';
   statusFunil: FunnelStage;
-  origemLead: 'zap' | 'vivareal' | 'meta' | 'google' | 'indicacao' | 'whatsapp' | 'outro' | '';
+  origemLead: any;
+  
   motivoDescarte?: string;
   motivoRejeicaoCredito?: string;
-  observacaoRejeicao?: string;
   observacoes?: string;
   checklistProgress?: {
     coletados: number;
@@ -76,6 +110,14 @@ export interface Lead {
     aprovados: number;
     temRejeitado: boolean;
   };
+  
+  // Compatibilidade com componentes imobiliários existentes
+  dataNascimento?: string;
+  rendaMensal?: number;
+  fgtsValor?: number;
+  fgtsAprovado?: boolean;
+  empreendimentoInteresse?: string;
+
   createdAt: string;
   updatedAt: string;
   ultimaInteracaoAt: string;
@@ -87,10 +129,11 @@ export interface Visit {
   leadNome?: string;
   leadTelefone?: string;
   corretorId?: string;
-  empreendimentoNome: string;
-  enderecoPlantao?: string;
+  empreendimentoNome: string; // Veículo / Produto Robusty
+  tipoAgendamento?: 'Instalação na Fábrica' | 'Coleta Transportadora';
+  enderecoPlantao?: string; // Fábrica Av. Aricanduva ou Galpão
   dataHora: string;
-  realizada: boolean | null; // null = agendada/pendente, true = realizada, false = não realizada/faltou
+  realizada: boolean | null;
   motivoNaoComparecimento?: string;
   observacoes?: string;
   createdAt?: string;
@@ -124,4 +167,3 @@ export interface WhatsAppInstance {
   connectedAt?: string;
   lastSyncAt?: string;
 }
-
