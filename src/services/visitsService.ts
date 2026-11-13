@@ -55,6 +55,38 @@ export const visitsService = {
    */
   async getVisits(): Promise<Visit[]> {
     if (isSupabaseConfigured) {
+      // 1. Tentar tabela oficial agendamentos (Robusty)
+      try {
+        const { data: agData, error: agErr } = await supabase
+          .from('agendamentos')
+          .select('*, leads(nome, telefone, produto_nome)')
+          .order('data_hora', { ascending: true });
+
+        if (!agErr && agData) {
+          const list: Visit[] = agData.map(row => {
+            const leadInfo = row.leads || {};
+            return {
+              id: row.id,
+              leadId: row.lead_id,
+              leadNome: leadInfo.nome || 'Cliente',
+              leadTelefone: leadInfo.telefone || '',
+              empreendimentoNome: leadInfo.produto_nome || row.tipo || 'Bagageiro Robusty',
+              enderecoPlantao: row.local_endereco || 'Fábrica Robusty: Av. Aricanduva, 5.541 - SP',
+              dataHora: row.data_hora,
+              realizada: row.realizado,
+              observacoes: row.observacoes,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+            };
+          });
+          saveStoredVisits(list);
+          return list;
+        }
+      } catch (err) {
+        console.warn('Tentativa com agendamentos:', err);
+      }
+
+      // 2. Fallback para tabela visitas se existir
       try {
         const { data, error } = await supabase
           .from('visitas')
@@ -84,38 +116,7 @@ export const visitsService = {
           return list;
         }
       } catch (err) {
-        console.warn('Tentativa com public.visitas falhou, utilizando cache local:', err);
-      }
-
-      // Tentar tabela agendamentos
-      try {
-        const { data: agData, error: agErr } = await supabase
-          .from('agendamentos')
-          .select('*, leads(nome, telefone, produto_nome)')
-          .order('data_hora', { ascending: true });
-
-        if (!agErr && agData) {
-          const list: Visit[] = agData.map(row => {
-            const leadInfo = row.leads || {};
-            return {
-              id: row.id,
-              leadId: row.lead_id,
-              leadNome: leadInfo.nome || 'Cliente',
-              leadTelefone: leadInfo.telefone || '',
-              empreendimentoNome: leadInfo.produto_nome || row.tipo || 'Bagageiro Robusty',
-              enderecoPlantao: row.local_endereco || 'Fábrica Robusty: Av. Aricanduva, 5.541 - SP',
-              dataHora: row.data_hora,
-              realizada: row.realizado,
-              observacoes: row.observacoes,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            };
-          });
-          saveStoredVisits(list);
-          return list;
-        }
-      } catch (err) {
-        console.warn('Tentativa com agendamentos falhou:', err);
+        console.warn('Tentativa com visitas:', err);
       }
     }
 
@@ -131,7 +132,7 @@ export const visitsService = {
       id: localId,
       leadId: input.leadId,
       empreendimentoNome: input.empreendimentoNome || 'Bagageiro Robusty',
-      enderecoPlantao: input.enderecoPlantao || 'Fábrica Robusty: Av. Aricanduva, 5.541 - São Paulo/SP',
+      enderecoPlantao: input.enderecoPlantao || 'Fábrica Robusty: Av. Aricanduva, 5.541 - SP',
       dataHora: input.dataHora,
       observacoes: input.observacoes,
       realizada: null,
@@ -144,8 +145,49 @@ export const visitsService = {
     const updated = [newVisit, ...current];
     saveStoredVisits(updated);
 
-    // Tentar persistir no Supabase se configurado
+    // Persistir no Supabase
     if (isSupabaseConfigured) {
+      // 1. Inserir em agendamentos
+      try {
+        const agPayload = {
+          lead_id: input.leadId,
+          tipo: 'Instalação na Fábrica',
+          local_endereco: input.enderecoPlantao || 'Fábrica Robusty: Av. Aricanduva, 5.541 - SP',
+          data_hora: input.dataHora,
+          realizado: null,
+          observacoes: input.observacoes || `${input.empreendimentoNome || 'Bagageiro Robusty'}`
+        };
+
+        const { data: agData, error: agErr } = await supabase
+          .from('agendamentos')
+          .insert([agPayload])
+          .select('*, leads(nome, telefone, produto_nome)')
+          .single();
+
+        if (!agErr && agData) {
+          const leadInfo = agData.leads || {};
+          const syncedVisit: Visit = {
+            id: agData.id,
+            leadId: agData.lead_id,
+            leadNome: leadInfo.nome || newVisit.leadNome,
+            leadTelefone: leadInfo.telefone || newVisit.leadTelefone,
+            empreendimentoNome: leadInfo.produto_nome || input.empreendimentoNome,
+            enderecoPlantao: agData.local_endereco || newVisit.enderecoPlantao,
+            dataHora: agData.data_hora,
+            realizada: agData.realizado,
+            observacoes: agData.observacoes,
+            createdAt: agData.created_at,
+            updatedAt: agData.updated_at,
+          };
+          const listWithRemote = updated.map(v => v.id === localId ? syncedVisit : v);
+          saveStoredVisits(listWithRemote);
+          return syncedVisit;
+        }
+      } catch (err: any) {
+        console.warn('Tentativa agendamentos:', err?.message || err);
+      }
+
+      // 2. Inserir em visitas (caso exista)
       try {
         const payload = {
           lead_id: input.leadId,
@@ -180,18 +222,15 @@ export const visitsService = {
             createdAt: data.created_at,
             updatedAt: data.updated_at,
           };
-          // Atualiza o registro local com o UUID do Supabase
           const listWithRemote = updated.map(v => v.id === localId ? syncedVisit : v);
           saveStoredVisits(listWithRemote);
           return syncedVisit;
-        } else {
-          console.warn('Aviso Supabase ao inserir em visitas:', error?.message);
         }
       } catch (err: any) {
-        console.warn('Persistência remota em visitas em fallback local:', err?.message || err);
+        console.warn('Tentativa visitas:', err?.message || err);
       }
 
-      // Tentar atualizar status_funil do lead no Supabase
+      // Atualizar status_funil do lead no Supabase
       try {
         await supabase
           .from('leads')
@@ -228,6 +267,18 @@ export const visitsService = {
     if (isSupabaseConfigured) {
       try {
         await supabase
+          .from('agendamentos')
+          .update({
+            realizado: realizada,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', visitId);
+      } catch (err) {
+        console.warn('Erro ao atualizar agendamentos:', err);
+      }
+
+      try {
+        await supabase
           .from('visitas')
           .update({
             realizada,
@@ -236,7 +287,7 @@ export const visitsService = {
           })
           .eq('id', visitId);
       } catch (err) {
-        console.warn('Erro ao atualizar outcome no Supabase:', err);
+        console.warn('Erro ao atualizar visitas:', err);
       }
     }
   },
@@ -262,6 +313,19 @@ export const visitsService = {
 
     if (isSupabaseConfigured) {
       try {
+        await supabase
+          .from('agendamentos')
+          .update({
+            data_hora: novaDataHora,
+            realizado: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', visitId);
+      } catch (err) {
+        console.warn('Erro ao reagendar agendamentos:', err);
+      }
+
+      try {
         const payload: any = {
           data_hora: novaDataHora,
           realizada: null,
@@ -277,7 +341,7 @@ export const visitsService = {
           .update(payload)
           .eq('id', visitId);
       } catch (err) {
-        console.warn('Erro ao reagendar no Supabase:', err);
+        console.warn('Erro ao reagendar visitas:', err);
       }
     }
   },
@@ -292,11 +356,20 @@ export const visitsService = {
     if (isSupabaseConfigured) {
       try {
         await supabase
+          .from('agendamentos')
+          .delete()
+          .eq('id', visitId);
+      } catch (err) {
+        console.warn('Erro ao excluir agendamentos:', err);
+      }
+
+      try {
+        await supabase
           .from('visitas')
           .delete()
           .eq('id', visitId);
       } catch (err) {
-        console.warn('Erro ao excluir no Supabase:', err);
+        console.warn('Erro ao excluir visitas:', err);
       }
     }
   },
