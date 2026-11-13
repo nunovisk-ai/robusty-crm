@@ -173,14 +173,14 @@ export const visitsService = {
     const formatDateUtc = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const dates = `${formatDateUtc(startDate)}/${formatDateUtc(endDate)}`;
 
-    const title = `Visita Estande - ${visit.empreendimentoNome} (${visit.leadNome || 'Lead'})`;
+    const title = `Instalação Robusty - ${visit.empreendimentoNome} (${visit.leadNome || 'Cliente'})`;
     const details = [
-      `🤝 Lead: ${visit.leadNome || 'Lead'}`,
+      `🚗 Cliente: ${visit.leadNome || 'Cliente'}`,
       `📞 Telefone: ${visit.leadTelefone || 'N/A'}`,
-      `🏢 Empreendimento: ${visit.empreendimentoNome}`,
-      `📍 Local: ${visit.enderecoPlantao || 'Plantão de Vendas'}`,
+      `📦 Modelo / Bagageiro: ${visit.empreendimentoNome}`,
+      `📍 Local: ${visit.enderecoPlantao || 'Fábrica Robusty - Av. Aricanduva, 5.541, SP'}`,
       visit.observacoes ? `📝 Observações: ${visit.observacoes}` : '',
-      '\nGrupo 3C Imobiliária'
+      '\nRobusty Bagageiros & Acessórios Automotivos'
     ].filter(Boolean).join('\n');
 
     const params = new URLSearchParams({
@@ -188,7 +188,7 @@ export const visitsService = {
       text: title,
       dates: dates,
       details: details,
-      location: visit.enderecoPlantao || 'Plantão de Vendas'
+      location: visit.enderecoPlantao || 'Av. Aricanduva, 5.541 - Vila Aricanduva, São Paulo - SP'
     });
 
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -206,17 +206,17 @@ export const visitsService = {
     const icsContent = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//Grupo 3C Imobiliaria//CRM//PT-BR',
+      'PRODID:-//Robusty Bagageiros//CRM//PT-BR',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       'BEGIN:VEVENT',
-      `UID:${visit.id || Date.now()}@grupo3c.vitrai.com.br`,
+      `UID:${visit.id || Date.now()}@robusty.com.br`,
       `DTSTAMP:${formatDateIcs(new Date())}`,
       `DTSTART:${formatDateIcs(startDate)}`,
       `DTEND:${formatDateIcs(endDate)}`,
-      `SUMMARY:Visita Estande: ${visit.empreendimentoNome} com ${visit.leadNome || 'Lead'}`,
-      `DESCRIPTION:Cliente: ${visit.leadNome || 'Lead'}\\nTelefone: ${visit.leadTelefone || 'N/A'}\\nEmpreendimento: ${visit.empreendimentoNome}\\nObs: ${visit.observacoes || 'N/A'}\\n\\nGrupo 3C Imobiliaria`,
-      `LOCATION:${visit.enderecoPlantao || 'Plantão de Vendas'}`,
+      `SUMMARY:Instalação Robusty: ${visit.empreendimentoNome} com ${visit.leadNome || 'Cliente'}`,
+      `DESCRIPTION:Cliente: ${visit.leadNome || 'Cliente'}\\nTelefone: ${visit.leadTelefone || 'N/A'}\\nBagageiro: ${visit.empreendimentoNome}\\nObs: ${visit.observacoes || 'N/A'}\\n\\nRobusty Bagageiros`,
+      `LOCATION:${visit.enderecoPlantao || 'Av. Aricanduva, 5.541 - Vila Aricanduva, São Paulo - SP'}`,
       'STATUS:CONFIRMED',
       'END:VEVENT',
       'END:VCALENDAR'
@@ -225,8 +225,8 @@ export const visitsService = {
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    const safeName = (visit.leadNome || 'lead').toLowerCase().replace(/\s+/g, '_');
-    link.setAttribute('download', `visita_${safeName}_${visit.empreendimentoNome.toLowerCase().replace(/\s+/g, '_')}.ics`);
+    const safeName = (visit.leadNome || 'cliente').toLowerCase().replace(/\s+/g, '_');
+    link.setAttribute('download', `instalacao_${safeName}_${visit.empreendimentoNome.toLowerCase().replace(/\s+/g, '_')}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -248,13 +248,15 @@ export const visitsService = {
       minute: '2-digit'
     });
 
+    const localInstalacao = visit.enderecoPlantao || 'Fábrica Robusty: Av. Aricanduva, 5.541 - Vila Aricanduva, São Paulo - SP';
+
     return `Olá, *${visit.leadNome}*! Tudo bem? 👋\n\n` +
-      `Aqui é da equipe do *Grupo 3C Imobiliária* confirmando nossa visita agendada ao estande do *${visit.empreendimentoNome}*! 🏢✨\n\n` +
+      `Aqui é da equipe da *Robusty Bagageiros* confirmando o seu agendamento de instalação do *${visit.empreendimentoNome}*! 🚗🔧\n\n` +
       `📅 *Data:* ${dataFormatada}\n` +
       `⏰ *Horário:* ${horaFormatada}\n` +
-      `📍 *Endereço do Plantão:* ${visit.enderecoPlantao || 'Plantão de Vendas'}\n\n` +
-      (visit.enderecoPlantao ? `🗺️ *Google Maps:* https://maps.google.com/?q=${encodeURIComponent(visit.enderecoPlantao)}\n\n` : '') +
-      `Você poderá conhecer o apartamento decorado e tiramos todas as dúvidas sobre fluxo de pagamento e aprovação de crédito Caixa. 🔑\n\n` +
-      `Por favor, me responda confirmando se este dia e horário continuam certos para você. Nos vemos lá! 🤝`;
+      `📍 *Local de Instalação:* ${localInstalacao}\n\n` +
+      `🗺️ *Localização no Google Maps:* https://maps.google.com/?q=${encodeURIComponent(localInstalacao)}\n\n` +
+      `Nossa equipe da fábrica deixará a sua estrutura pronta para instalação rápida e segura no seu veículo. 🛠️✨\n\n` +
+      `Por favor, me responda confirmando se o dia e horário continuam certos para você. Até logo! 🤝`;
   }
 };

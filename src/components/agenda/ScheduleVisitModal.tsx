@@ -80,7 +80,7 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
       return;
     }
     if (!dataVisita || !horaVisita) {
-      alert('Informe a data e o horário da visita.');
+      alert('Informe a data e o horário da instalação.');
       return;
     }
 
@@ -90,7 +90,7 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
       const visit = await visitsService.createVisit({
         leadId: selectedLeadId,
         empreendimentoNome: selectedEmpNome,
-        enderecoPlantao: enderecoPlantao,
+        enderecoPlantao: enderecoPlantao || 'Av. Aricanduva, 5.541 - Vila Aricanduva, São Paulo - SP',
         dataHora: dataHoraIso,
         observacoes: observacoes || undefined,
       });
@@ -98,8 +98,8 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
       setCreatedVisit(visit);
       onSuccess(visit);
     } catch (err: any) {
-      console.error('Erro ao agendar visita:', err);
-      alert('Falha ao agendar visita: ' + (err.message || 'Erro desconhecido'));
+      console.error('Erro ao agendar instalação:', err);
+      alert('Falha ao agendar instalação: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setIsSubmitting(false);
     }
@@ -127,10 +127,10 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">
-                {createdVisit ? 'Visita Agendada com Sucesso!' : 'Agendar Visita ao Plantão'}
+                {createdVisit ? 'Instalação Agendada com Sucesso!' : 'Agendar Instalação'}
               </h3>
               <p className="text-[11px] text-slate-400">
-                {createdVisit ? 'Sincronize com a sua agenda ou envie confirmação no WhatsApp' : 'Reserve o horário no estande para apresentar o decorado'}
+                {createdVisit ? 'Sincronize com o calendário ou envie confirmação no WhatsApp' : 'Reserve o horário no box de montagem na fábrica da Robusty'}
               </p>
             </div>
           </div>
@@ -257,11 +257,11 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
                 )}
               </div>
 
-              {/* Empreendimento Selection */}
+              {/* Modelo do Bagageiro / Produto */}
               <div>
                 <label className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Empreendimento a ser visitado</span>
+                  <span>Modelo do Bagageiro / Produto</span>
                 </label>
                 <select
                   value={selectedEmpNome}
@@ -281,17 +281,17 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
                 </select>
               </div>
 
-              {/* Stand / Plantão Address */}
+              {/* Local da Instalação */}
               <div>
                 <label className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Endereço do Plantão / Ponto de Encontro</span>
+                  <span>Local da Instalação / Ponto de Encontro</span>
                 </label>
                 <input
                   type="text"
                   value={enderecoPlantao}
                   onChange={(e) => setEnderecoPlantao(e.target.value)}
-                  placeholder="Ex: Av. Itaquera, 2400 - Itaquera, SP"
+                  placeholder="Ex: Av. Aricanduva, 5.541 - Vila Aricanduva, São Paulo - SP"
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-slate-800"
                 />
               </div>
@@ -301,7 +301,7 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
                 <div>
                   <label className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-brand-500" />
-                    <span>Data da Visita *</span>
+                    <span>Data da Instalação *</span>
                   </label>
                   <input
                     type="date"
@@ -316,7 +316,7 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
                 <div>
                   <label className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-brand-500" />
-                    <span>Horário da Visita *</span>
+                    <span>Horário da Instalação *</span>
                   </label>
                   <select
                     value={horaVisita}
@@ -356,13 +356,13 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
               {/* Observações */}
               <div>
                 <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
-                  Observações para a Visita (opcional)
+                  Observações da Instalação (opcional)
                 </label>
                 <textarea
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
                   rows={2}
-                  placeholder="Ex: Cliente quer ver planta de 2 dormitórios com vaga. Trazer cópia dos holerites."
+                  placeholder="Ex: Veículo Fiorino 2022, bagageiro FX 100 com escada traseira. Cliente vai aguardar na fábrica."
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-slate-800 resize-none"
                 />
               </div>

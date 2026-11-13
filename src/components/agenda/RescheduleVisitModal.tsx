@@ -17,11 +17,11 @@ interface RescheduleVisitModalProps {
 
 const REASONS = [
   'Cliente pediu para reagendar',
-  'Imprevisto familiar ou pessoal do cliente',
-  'Imprevisto no trabalho / escala de plantão',
+  'Veículo na oficina ou manutenção mecânica',
+  'Imprevisto de rota / trabalho do cliente',
   'Chuva forte ou trânsito intenso em São Paulo',
-  'Cliente não compareceu e não atendeu ligação/WhatsApp',
-  'Cliente optou por outro projeto / desistiu',
+  'Cliente não compareceu na fábrica e não atendeu WhatsApp/ligação',
+  'Cliente optou por envio via transportadora',
   'Outro motivo'
 ];
 
@@ -85,7 +85,7 @@ export const RescheduleVisitModal: React.FC<RescheduleVisitModalProps> = ({
               <RotateCw className="w-5 h-5 text-amber-100" />
             </div>
             <div>
-              <h3 className="text-base font-bold">Desfecho / Reagendar Visita</h3>
+              <h3 className="text-base font-bold">Desfecho / Reagendar Instalação</h3>
               <p className="text-xs text-amber-100">
                 {visit.leadNome} • {visit.empreendimentoNome}
               </p>
@@ -151,7 +151,7 @@ export const RescheduleVisitModal: React.FC<RescheduleVisitModalProps> = ({
             <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-200/80 space-y-2">
               <label className="text-xs font-bold text-brand-900 flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-brand-500" />
-                <span>Nova Data e Horário da Visita:</span>
+                <span>Nova Data e Horário da Instalação:</span>
               </label>
               <input
                 type="datetime-local"
@@ -161,7 +161,7 @@ export const RescheduleVisitModal: React.FC<RescheduleVisitModalProps> = ({
                 className="w-full px-3 py-2 text-xs bg-white border border-orange-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-slate-800"
               />
               <p className="text-[10px] text-slate-500">
-                A visita será atualizada no sistema e você poderá gerar um novo link de calendário ou confirmação no WhatsApp.
+                A instalação será atualizada no sistema e você poderá gerar um novo link de calendário ou confirmação no WhatsApp.
               </p>
             </div>
           )}
