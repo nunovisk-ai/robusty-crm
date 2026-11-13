@@ -146,6 +146,21 @@ CREATE TABLE IF NOT EXISTS public.agendamentos (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 6.1 TABELA DE INSTALAÇÕES (COMPATIBILIDADE AGENDA)
+CREATE TABLE IF NOT EXISTS public.visitas (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
+    empreendimento_nome TEXT,
+    endereco_plantao TEXT DEFAULT 'Fábrica Robusty: Av. Aricanduva, 5.541 - SP',
+    data_hora TIMESTAMP WITH TIME ZONE NOT NULL,
+    realizada BOOLEAN DEFAULT null,
+    motivo_nao_comparecimento TEXT,
+    observacoes TEXT,
+    corretor_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 7. TABELA DE MENSAGENS DO WHATSAPP
 CREATE TABLE IF NOT EXISTS public.whatsapp_messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -163,6 +178,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.produtos_catalogo ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agendamentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.visitas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.whatsapp_messages ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de Leitura/Escrita Liberadas para Usuários Autenticados e Anon (para demonstração)
@@ -170,4 +186,5 @@ CREATE POLICY "Permitir leitura pública catálogo" ON public.produtos_catalogo 
 CREATE POLICY "Permitir tudo leads" ON public.leads FOR ALL USING (true);
 CREATE POLICY "Permitir tudo perfis" ON public.profiles FOR ALL USING (true);
 CREATE POLICY "Permitir tudo agendamentos" ON public.agendamentos FOR ALL USING (true);
+CREATE POLICY "Permitir tudo visitas" ON public.visitas FOR ALL USING (true);
 CREATE POLICY "Permitir tudo whatsapp" ON public.whatsapp_messages FOR ALL USING (true);
