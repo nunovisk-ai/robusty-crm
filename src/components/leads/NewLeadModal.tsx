@@ -41,8 +41,8 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
 
   const getInitialDesconto = () => {
     if (initialValues?.descontoPercentual !== undefined) return initialValues.descontoPercentual;
-    if (initialValues?.condicaoPreco === 'avista') return 5;
-    if (initialValues?.condicaoPreco === 'max10') return 10;
+    if (initialValues?.condicaoPreco === 'pix' || initialValues?.condicaoPreco === 'max10') return 10;
+    if (initialValues?.condicaoPreco === 'boleto' || initialValues?.condicaoPreco === 'avista') return 5;
     return 0;
   };
 
@@ -63,15 +63,14 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
   // Produtos filtrados pelo veículo
   const produtosDisponiveis = CATALOGO_ROBUSTY_2026.filter(p => p.veiculo === veiculoLinha);
 
-  // Troca de Método de Pagamento com sugestão inteligente de desconto
+  // Troca de Método de Pagamento com sugestão inteligente de desconto (PIX = 10%, Boleto = 5%)
   const handleMetodoChange = (novoMetodo: string) => {
     setCondicaoPreco(novoMetodo);
-    if (novoMetodo === 'pix' && descontoPercentual === 0) {
-      setDescontoPercentual(5);
-    } else if (novoMetodo === 'boleto' && descontoPercentual === 0) {
+    if (novoMetodo === 'pix') {
       setDescontoPercentual(10);
+    } else if (novoMetodo === 'boleto') {
+      setDescontoPercentual(5);
     } else if (novoMetodo === 'cartao_credito' || novoMetodo === 'pagamento_hora') {
-      // mantém o desconto escolhido ou 0 se veio dos padrões
       if (descontoPercentual === 5 || descontoPercentual === 10) {
         setDescontoPercentual(0);
       }

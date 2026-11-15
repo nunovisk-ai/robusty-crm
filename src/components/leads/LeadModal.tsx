@@ -45,7 +45,7 @@ export const LeadModal: React.FC<LeadModalProps> = ({
     veiculoAno: lead.veiculoAno || '',
     produtoNome: lead.produtoNome || 'Bagageiro Kombi MX 100 PLUS (Aba Dupla)',
     condicaoPreco: lead.condicaoPreco === '10x' ? 'cartao_credito' : lead.condicaoPreco === 'avista' ? 'pix' : lead.condicaoPreco === 'max10' ? 'boleto' : (lead.condicaoPreco || 'cartao_credito'),
-    descontoPercentual: lead.descontoPercentual !== undefined ? lead.descontoPercentual : (lead.condicaoPreco === 'avista' ? 5 : lead.condicaoPreco === 'max10' ? 10 : 0),
+    descontoPercentual: lead.descontoPercentual !== undefined ? lead.descontoPercentual : (lead.condicaoPreco === 'pix' || lead.condicaoPreco === 'max10' ? 10 : lead.condicaoPreco === 'boleto' || lead.condicaoPreco === 'avista' ? 5 : 0),
     valorTotal: lead.valorTotal || 2600.00,
     custoInstalacao: lead.custoInstalacao || 0,
     corBagageiro: lead.corBagageiro || 'Preto Epóxi',
@@ -79,10 +79,10 @@ export const LeadModal: React.FC<LeadModalProps> = ({
     let metodo = novoMetodo !== undefined ? novoMetodo : formData.condicaoPreco;
     let desc = novoDesconto !== undefined ? novoDesconto : (formData.descontoPercentual || 0);
 
-    // Sugestão padrão inteligente ao alternar método caso desconto não tenha sido especificado
+    // Sugestão padrão inteligente ao alternar método (PIX = 10%, Boleto = 5%)
     if (novoMetodo !== undefined && novoDesconto === undefined) {
-      if (novoMetodo === 'pix' && desc === 0) desc = 5;
-      else if (novoMetodo === 'boleto' && desc === 0) desc = 10;
+      if (novoMetodo === 'pix') desc = 10;
+      else if (novoMetodo === 'boleto') desc = 5;
       else if (novoMetodo === 'cartao_credito' || novoMetodo === 'pagamento_hora') {
         if (desc === 5 || desc === 10) desc = 0;
       }
