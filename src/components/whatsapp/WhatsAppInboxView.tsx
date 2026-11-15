@@ -30,7 +30,8 @@ import {
   X,
   PanelRightClose,
   PanelRightOpen,
-  Maximize2
+  Maximize2,
+  RefreshCw
 } from 'lucide-react';
 import { WhatsAppIcon } from '../icons/WhatsAppIcon';
 import { formatPhoneBR } from '../../utils/phoneMask';
@@ -970,14 +971,17 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
             });
           }
         } else {
+          const isPhonebookSaved = Boolean(chat.hasHumanName && chat.name && chat.name !== chat.phone && chat.name !== chat.rawPhone);
+          const contactDisplayName = isPhonebookSaved ? chat.name : (chat.phone || (chat.rawPhone ? formatPhoneNumberString(chat.rawPhone) : 'Contato WhatsApp'));
+
           unlinkedList.push({
             id: chat.remoteJid,
             remoteJid: chat.remoteJid,
             allJids: chat.allJids && chat.allJids.length > 0 ? chat.allJids : [chat.remoteJid],
-            nome: chat.pushName || chat.name || chat.phone || 'Contato WhatsApp',
-            telefone: chat.phone,
+            nome: contactDisplayName,
+            telefone: chat.phone || (chat.rawPhone ? formatPhoneNumberString(chat.rawPhone) : ''),
             rawPhone: chat.rawPhone,
-            profilePushName: chat.profilePushName,
+            profilePushName: null,
             mensagem: finalLastMessage || 'Conversa iniciada via WhatsApp',
             enviadaAt: finalTimestamp || new Date().toISOString(),
             unreadCount: effectiveUnread,
@@ -1336,7 +1340,16 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
         loadMessages(selectedLeadId, isCurUnlinked, true);
       }
     }, 3500);
-    return () => clearInterval(interval);
+
+    const handleFocus = () => {
+      loadChats();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [isConnected, session, selectedLeadId, leads]);
 
   useEffect(() => {
@@ -1861,16 +1874,28 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                 <h3 className="text-sm font-bold text-slate-900">Conversas WhatsApp</h3>
               </div>
 
-              {/* Status Badge */}
-              <button
-                onClick={onOpenConnectModal}
-                title="Configurar Conexão WhatsApp"
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border ${
-                  isConnected 
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                }`}
-              >
+              <div className="flex items-center gap-1.5">
+                {isConnected && (
+                  <button
+                    type="button"
+                    onClick={() => loadChats()}
+                    title="Sincronizar agenda e mensagens com o WhatsApp agora"
+                    className="p-1.5 rounded-xl border border-slate-200 bg-white hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 text-slate-500 transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingChats ? 'animate-spin text-emerald-600' : ''}`} />
+                  </button>
+                )}
+
+                {/* Status Badge */}
+                <button
+                  onClick={onOpenConnectModal}
+                  title="Configurar Conexão WhatsApp"
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                    isConnected 
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
                 {isConnected ? (
                   <>
                     <Wifi className="w-3 h-3 text-emerald-600" />
@@ -1883,6 +1908,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                   </>
                 )}
               </button>
+              </div>
             </div>
 
             {/* Search Input */}

@@ -1222,12 +1222,18 @@ export const whatsappService = {
    */
   async getRealChats(sessionName: string = '3c_vendedor'): Promise<any[]> {
     try {
-      // Purge legacy corrupted pushName caches from browser that caused non-saved contacts to display nicknames
+      // Purge all legacy and static name caches from browser to guarantee 100% clean phonebook-only state
       try {
         localStorage.removeItem(`3c_name_cache_${sessionName}`);
         localStorage.removeItem('3c_name_cache_robusty_oficial');
         localStorage.removeItem('3c_name_cache_3c_vendedor');
+        localStorage.removeItem(`3c_phonebook_v2_${sessionName}`);
+        localStorage.removeItem('3c_phonebook_v2_robusty_oficial');
+        localStorage.removeItem('3c_phonebook_v2_3c_vendedor');
       } catch {}
+
+      // Reset in-memory name cache completely so it mirrors phonebook with zero stale entries
+      nameMemoryCache.clear();
 
       // Hydrate caches from localStorage
       const storedLids = loadLocalCache(`3c_lid_map_${sessionName}`);
@@ -1235,10 +1241,6 @@ export const whatsappService = {
         if (typeof v === 'string' && v.includes('@s.whatsapp.net')) {
           lidMemoryCache.set(k, v);
         }
-      }
-      const storedNames = loadLocalCache(`3c_phonebook_v2_${sessionName}`);
-      for (const [k, v] of Object.entries(storedNames)) {
-        if (isValidContactName(v)) nameMemoryCache.set(k, v);
       }
       const storedPics = loadLocalCache<Record<string, any>>(`3c_pic_cache_${sessionName}`);
       for (const [k, v] of Object.entries(storedPics)) {
@@ -1314,7 +1316,6 @@ export const whatsappService = {
       }>();
       const statusRank: Record<'sent' | 'delivered' | 'read', number> = { sent: 1, delivered: 2, read: 3 };
 
-      const strangerProfileNamesByJid = new Map<string, string>();
       if (recentMsgsRes.status === 'fulfilled' && recentMsgsRes.value.ok) {
         try {
           const msgData = await recentMsgsRes.value.json();
@@ -1328,15 +1329,6 @@ export const whatsappService = {
               lidMemoryCache.set(jid, alt);
               storedLids[jid] = alt;
               lidsUpdated = true;
-            }
-            if (!m.key?.fromMe && isValidContactName(m.pushName)) {
-              const validPush = m.pushName.trim();
-              if (jid && !jid.includes('@g.us')) {
-                strangerProfileNamesByJid.set(jid, validPush);
-              }
-              if (alt && !alt.includes('@g.us')) {
-                strangerProfileNamesByJid.set(alt, validPush);
-              }
             }
 
             if (jid && !jid.includes('@g.us')) {
@@ -1509,34 +1501,15 @@ export const whatsappService = {
                 for (const j of jidsToIndex) {
                   mergeIntoContactsMap(j, rawName, pic, true);
                   nameMemoryCache.set(j, rawName);
-                  storedNames[j] = rawName;
-                  namesUpdated = true;
                 }
               } else {
                 for (const j of jidsToIndex) {
                   mergeIntoContactsMap(j, null, pic, false);
-                  if (nameMemoryCache.has(j)) {
-                    nameMemoryCache.delete(j);
-                  }
-                  if (storedNames[j]) {
-                    delete storedNames[j];
-                    namesUpdated = true;
-                  }
+                  nameMemoryCache.delete(j);
                 }
               }
 
               if (phoneCandidate && phoneCandidate.includes('@s.whatsapp.net')) {
-                // If an unmapped LID in strangerProfileNamesByJid shares this exact pushName, link them!
-                if (rawName) {
-                  for (const [sJid, sName] of strangerProfileNamesByJid.entries()) {
-                    if (sJid.includes('@lid') && !lidMemoryCache.has(sJid) && sName.toLowerCase() === rawName.toLowerCase()) {
-                      lidMemoryCache.set(sJid, phoneCandidate);
-                      storedLids[sJid] = phoneCandidate;
-                      lidsFromContacts = true;
-                    }
-                  }
-                }
-
                 const fname = extractPicFilename(pic);
                 if (fname) {
                   picFileToContactCache.set(fname, { jid: phoneCandidate, name: rawName });
@@ -1558,8 +1531,6 @@ export const whatsappService = {
                   if (rawName && isFromPhonebook) {
                     mergeIntoContactsMap(digits, rawName, pic, true);
                     nameMemoryCache.set(digits, rawName);
-                    storedNames[digits] = rawName;
-                    namesUpdated = true;
                     if (digits.length >= 8) {
                       mergeIntoContactsMap(digits.slice(-8), rawName, pic, true);
                     }
@@ -1570,14 +1541,9 @@ export const whatsappService = {
                   if (rawName && isFromPhonebook) {
                     mergeIntoContactsMap(brKey, rawName, pic, true);
                     nameMemoryCache.set(brKey, rawName);
-                    storedNames[brKey] = rawName;
-                    namesUpdated = true;
                   }
                 }
               }
-            }
-            if (namesUpdated) {
-              saveLocalCache(`3c_phonebook_v2_${sessionName}`, storedNames);
             }
             if (lidsFromContacts) {
               saveLocalCache(`3c_lid_map_${sessionName}`, storedLids);
@@ -1634,23 +1600,6 @@ export const whatsappService = {
           }
         }
 
-        // Check if lastMessage contains a greeting/vocative or business header name
-        if (!lidMemoryCache.has(c.remoteJid) && !nameMemoryCache.has(c.remoteJid)) {
-          const msgText = getChatLastMsgText(c);
-          const extractedName = extractNameFromMessageText(msgText, Boolean(c.lastMessage?.key?.fromMe));
-          if (extractedName) {
-            const firstWord = normalizeWord(extractedName.split(/\s+/)[0]);
-            const candidates = firstNameToContactsMap.get(firstWord) || [];
-            if (candidates.length === 1) {
-              lidMemoryCache.set(c.remoteJid, candidates[0].jid);
-              storedLids[c.remoteJid] = candidates[0].jid;
-              nameMemoryCache.set(c.remoteJid, candidates[0].name);
-              lidsUpdatedFromChats = true;
-            } else {
-              nameMemoryCache.set(c.remoteJid, extractedName);
-            }
-          }
-        }
       }
 
       if (lidsUpdatedFromChats) {
@@ -1794,46 +1743,9 @@ export const whatsappService = {
           }
         }
 
-        if (!resolvedName) {
-          for (const jid of jidCandidates) {
-            const cachedName = nameMemoryCache.get(jid);
-            if (cachedName && isValidContactName(cachedName)) {
-              resolvedName = cachedName;
-              break;
-            }
-          }
-        }
-
-        if (!resolvedName) {
-          for (const mc of mergedChats) {
-            const chatLevelCandidates = [
-              mc.verifiedBizName,
-              mc.verifiedName,
-            ];
-            const found = chatLevelCandidates.find(n => isValidContactName(n));
-            if (found) {
-              resolvedName = found.trim();
-              break;
-            }
-          }
-        }
-
-        // Stranger profile nickname (e.g. Ju, Zé) used strictly for search matching, never displayed as phonebook name
-        let strangerPushName: string | null = null;
-        for (const jid of jidCandidates) {
-          const sName = strangerProfileNamesByJid.get(jid);
-          if (sName) { strangerPushName = sName; break; }
-        }
-        if (!strangerPushName) {
-          for (const mc of mergedChats) {
-            const cName = mc.pushName || mc.contact?.pushName || mc.lastMessage?.pushName;
-            if (isValidContactName(cName)) { strangerPushName = cName.trim(); break; }
-          }
-        }
-
         const hasHumanName = Boolean(resolvedName);
         if (!resolvedName) {
-          resolvedName = formattedPhone || 'Contato WhatsApp';
+          resolvedName = formattedPhone || (rawPhone ? formatPhoneNumberString(rawPhone) : 'Contato WhatsApp');
         }
 
         // Resolve Profile Picture (prefer fresh valid cache & contactsMap over potentially expired chat DB URLs)
@@ -1962,7 +1874,7 @@ export const whatsappService = {
           allJids: jidCandidates,
           name: resolvedName,
           pushName: resolvedName,
-          profilePushName: strangerPushName,
+          profilePushName: null,
           hasHumanName,
           phone: formattedPhone,
           rawPhone: rawPhone,
