@@ -256,7 +256,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                   onChange={(e) => setCustoInstalacao(Number(e.target.value))}
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none"
                 >
-                  <option value={0}>Grátis na Fábrica (R$ 0)</option>
+                  <option value={0}>Instalação na Loja (R$ 0)</option>
                   <option value={200}>Fiorino / Doblo (+ R$ 200)</option>
                   <option value={340}>Rebite c/ Forração (+ R$ 340)</option>
                   <option value={170}>Toldo Leroy (+ R$ 170)</option>
