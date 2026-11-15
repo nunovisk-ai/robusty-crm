@@ -84,7 +84,8 @@ export interface Lead {
   veiculoLinha: 'Kombi' | 'Kangoo' | 'Fiorino' | 'Doblo' | 'Jumpy/Expert/Scudo' | 'Ducato' | 'Saveiro' | 'Decks & Acessórios' | 'Outro';
   veiculoAno?: string;
   produtoNome: string;
-  condicaoPreco: '10x' | 'avista' | 'max10';
+  condicaoPreco: 'cartao_credito' | 'pix' | 'boleto' | 'pagamento_hora' | '10x' | 'avista' | 'max10' | string;
+  descontoPercentual?: number;
   valorTotal: number;
   custoInstalacao: number;
   corBagageiro?: string;

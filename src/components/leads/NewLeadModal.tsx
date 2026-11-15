@@ -30,7 +30,24 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
   const [veiculoLinha, setVeiculoLinha] = useState<any>(initialValues?.veiculoLinha || 'Kombi');
   const [veiculoAno, setVeiculoAno] = useState(initialValues?.veiculoAno || '');
   const [produtoNome, setProdutoNome] = useState(initialValues?.produtoNome || 'Bagageiro Kombi MX 100 PLUS (Aba Dupla)');
-  const [condicaoPreco, setCondicaoPreco] = useState<'10x' | 'avista' | 'max10'>('10x');
+  // Mapeamento compatível para método de pagamento inicial
+  const getInitialMetodo = () => {
+    const val = initialValues?.condicaoPreco;
+    if (val === '10x') return 'cartao_credito';
+    if (val === 'avista') return 'pix';
+    if (val === 'max10') return 'boleto';
+    return val || 'cartao_credito';
+  };
+
+  const getInitialDesconto = () => {
+    if (initialValues?.descontoPercentual !== undefined) return initialValues.descontoPercentual;
+    if (initialValues?.condicaoPreco === 'avista') return 5;
+    if (initialValues?.condicaoPreco === 'max10') return 10;
+    return 0;
+  };
+
+  const [condicaoPreco, setCondicaoPreco] = useState<string>(getInitialMetodo());
+  const [descontoPercentual, setDescontoPercentual] = useState<number>(getInitialDesconto());
   const [custoInstalacao, setCustoInstalacao] = useState<number>(0);
   const [corBagageiro, setCorBagageiro] = useState(initialValues?.corBagageiro || 'Preto Epóxi');
 
@@ -46,12 +63,27 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
   // Produtos filtrados pelo veículo
   const produtosDisponiveis = CATALOGO_ROBUSTY_2026.filter(p => p.veiculo === veiculoLinha);
 
-  // Cálculo do preço conforme tabela do catálogo
+  // Troca de Método de Pagamento com sugestão inteligente de desconto
+  const handleMetodoChange = (novoMetodo: string) => {
+    setCondicaoPreco(novoMetodo);
+    if (novoMetodo === 'pix' && descontoPercentual === 0) {
+      setDescontoPercentual(5);
+    } else if (novoMetodo === 'boleto' && descontoPercentual === 0) {
+      setDescontoPercentual(10);
+    } else if (novoMetodo === 'cartao_credito' || novoMetodo === 'pagamento_hora') {
+      // mantém o desconto escolhido ou 0 se veio dos padrões
+      if (descontoPercentual === 5 || descontoPercentual === 10) {
+        setDescontoPercentual(0);
+      }
+    }
+  };
+
+  // Cálculo do preço conforme desconto percentual de 1% a 10%
   const prodAtual = CATALOGO_ROBUSTY_2026.find(p => p.nome === produtoNome) || produtosDisponiveis[0] || CATALOGO_ROBUSTY_2026[0];
-  let precoBase = prodAtual.preco10x;
-  if (condicaoPreco === 'avista') precoBase = prodAtual.precoAvista;
-  if (condicaoPreco === 'max10') precoBase = prodAtual.precoMax10;
-  const valorTotalFinal = precoBase + custoInstalacao;
+  const precoBase = prodAtual.preco10x;
+  const valorDesconto = (precoBase * (descontoPercentual || 0)) / 100;
+  const precoProdutoComDesconto = precoBase - valorDesconto;
+  const valorTotalFinal = precoProdutoComDesconto + custoInstalacao;
 
   const handleVeiculoChange = (novoVeiculo: any) => {
     setVeiculoLinha(novoVeiculo);
@@ -77,6 +109,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
         veiculoAno: veiculoAno.trim() || undefined,
         produtoNome,
         condicaoPreco,
+        descontoPercentual,
         valorTotal: valorTotalFinal,
         custoInstalacao,
         corBagageiro,
@@ -234,18 +267,40 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
               </div>
             </div>
 
-            {/* Condição de Preço e Taxa */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Método de Pagamento, Desconto, Instalação e Valor Calculado */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Condição Catálogo</label>
+                <label className="block text-slate-700 font-bold mb-1">Método de Pagamento</label>
                 <select
                   value={condicaoPreco}
-                  onChange={(e) => setCondicaoPreco(e.target.value as any)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none"
+                  onChange={(e) => handleMetodoChange(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none font-medium"
                 >
-                  <option value="10x">💳 10x Sem Juros</option>
-                  <option value="avista">💵 À Vista (5% desc.)</option>
-                  <option value="max10">🔥 Desconto Máximo (10% MAX)</option>
+                  <option value="cartao_credito">💳 Cartão de Crédito</option>
+                  <option value="pix">⚡ PIX</option>
+                  <option value="boleto">📄 Boleto</option>
+                  <option value="pagamento_hora">🏪 Pagamento na Hora</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Desconto</label>
+                <select
+                  value={descontoPercentual}
+                  onChange={(e) => setDescontoPercentual(Number(e.target.value))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none font-semibold text-brand-600"
+                >
+                  <option value={0}>Sem Desconto (0%)</option>
+                  <option value={1}>1% de Desconto</option>
+                  <option value={2}>2% de Desconto</option>
+                  <option value={3}>3% de Desconto</option>
+                  <option value={4}>4% de Desconto</option>
+                  <option value={5}>5% de Desconto</option>
+                  <option value={6}>6% de Desconto</option>
+                  <option value={7}>7% de Desconto</option>
+                  <option value={8}>8% de Desconto</option>
+                  <option value={9}>9% de Desconto</option>
+                  <option value={10}>10% de Desconto</option>
                 </select>
               </div>
 
@@ -269,6 +324,9 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">Valor Calculado</label>
                 <div className="w-full bg-white border border-emerald-300 text-emerald-800 font-mono font-bold text-sm rounded-xl px-3 py-2 flex items-center justify-between">
                   <span>{currencyFormatter(valorTotalFinal)}</span>
+                  {descontoPercentual > 0 && (
+                    <span className="text-[10px] text-emerald-600 font-normal">(-{descontoPercentual}%)</span>
+                  )}
                 </div>
               </div>
             </div>

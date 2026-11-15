@@ -254,7 +254,8 @@ export const leadsService = {
       veiculoLinha: newLeadData.veiculoLinha || 'Kombi',
       veiculoAno: newLeadData.veiculoAno || '',
       produtoNome: newLeadData.produtoNome || 'Bagageiro Kombi MX 100 PLUS (Aba Dupla)',
-      condicaoPreco: newLeadData.condicaoPreco || '10x',
+      condicaoPreco: newLeadData.condicaoPreco || 'cartao_credito',
+      descontoPercentual: newLeadData.descontoPercentual !== undefined ? newLeadData.descontoPercentual : 0,
       valorTotal: Number(newLeadData.valorTotal) || 2600.00,
       custoInstalacao: Number(newLeadData.custoInstalacao) || 0,
       corBagageiro: newLeadData.corBagageiro || 'Preto Epóxi',
@@ -334,6 +335,9 @@ export const leadsService = {
         if (updates.responsavelAtual) dbUpdates.responsavel_atual = updates.responsavelAtual;
         if (updates.valorTotal !== undefined) dbUpdates.valor_total = updates.valorTotal;
         if (updates.produtoNome) dbUpdates.produto_nome = updates.produtoNome;
+        if (updates.condicaoPreco) dbUpdates.condicao_preco = updates.condicaoPreco;
+        if (updates.custoInstalacao !== undefined) dbUpdates.custo_instalacao = updates.custoInstalacao;
+        if (updates.corBagageiro) dbUpdates.cor_bagageiro = updates.corBagageiro;
         if (updates.observacoes !== undefined) dbUpdates.observacoes = updates.observacoes;
         if (updates.modalidade) dbUpdates.modalidade = updates.modalidade;
 

@@ -44,7 +44,8 @@ export const LeadModal: React.FC<LeadModalProps> = ({
     veiculoLinha: lead.veiculoLinha || 'Kombi',
     veiculoAno: lead.veiculoAno || '',
     produtoNome: lead.produtoNome || 'Bagageiro Kombi MX 100 PLUS (Aba Dupla)',
-    condicaoPreco: lead.condicaoPreco || '10x',
+    condicaoPreco: lead.condicaoPreco === '10x' ? 'cartao_credito' : lead.condicaoPreco === 'avista' ? 'pix' : lead.condicaoPreco === 'max10' ? 'boleto' : (lead.condicaoPreco || 'cartao_credito'),
+    descontoPercentual: lead.descontoPercentual !== undefined ? lead.descontoPercentual : (lead.condicaoPreco === 'avista' ? 5 : lead.condicaoPreco === 'max10' ? 10 : 0),
     valorTotal: lead.valorTotal || 2600.00,
     custoInstalacao: lead.custoInstalacao || 0,
     corBagageiro: lead.corBagageiro || 'Preto Epóxi',
@@ -66,26 +67,44 @@ export const LeadModal: React.FC<LeadModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRecalculatePrice = (novoVeiculo?: string, novoProduto?: string, novaCondicao?: '10x' | 'avista' | 'max10', novaInstal?: number) => {
+  const handleRecalculatePrice = (
+    novoVeiculo?: string,
+    novoProduto?: string,
+    novoMetodo?: string,
+    novoDesconto?: number,
+    novaInstal?: number
+  ) => {
     const vLinha = novoVeiculo || formData.veiculoLinha;
     const pNome = novoProduto || formData.produtoNome;
-    const cond = novaCondicao || formData.condicaoPreco;
+    let metodo = novoMetodo !== undefined ? novoMetodo : formData.condicaoPreco;
+    let desc = novoDesconto !== undefined ? novoDesconto : (formData.descontoPercentual || 0);
+
+    // Sugestão padrão inteligente ao alternar método caso desconto não tenha sido especificado
+    if (novoMetodo !== undefined && novoDesconto === undefined) {
+      if (novoMetodo === 'pix' && desc === 0) desc = 5;
+      else if (novoMetodo === 'boleto' && desc === 0) desc = 10;
+      else if (novoMetodo === 'cartao_credito' || novoMetodo === 'pagamento_hora') {
+        if (desc === 5 || desc === 10) desc = 0;
+      }
+    }
+
     const inst = novaInstal !== undefined ? novaInstal : formData.custoInstalacao;
 
     const prod = CATALOGO_ROBUSTY_2026.find(p => p.nome === pNome);
     if (!prod) return;
 
-    let base = prod.preco10x;
-    if (cond === 'avista') base = prod.precoAvista;
-    if (cond === 'max10') base = prod.precoMax10;
+    const base = prod.preco10x;
+    const valorDesconto = (base * (desc || 0)) / 100;
+    const precoComDesconto = base - valorDesconto;
 
     setFormData(prev => ({
       ...prev,
       veiculoLinha: vLinha as any,
       produtoNome: pNome,
-      condicaoPreco: cond,
+      condicaoPreco: metodo,
+      descontoPercentual: desc,
       custoInstalacao: inst,
-      valorTotal: base + inst
+      valorTotal: precoComDesconto + inst
     }));
   };
 
@@ -206,8 +225,11 @@ export const LeadModal: React.FC<LeadModalProps> = ({
                 <Car className="w-4 h-4 text-brand-600" />
                 <span>Veículo & Modelo de Bagageiro Robusty</span>
               </span>
-              <span className="font-mono text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 text-sm font-bold">
-                {currencyFormatter(formData.valorTotal)}
+              <span className="font-mono text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 text-sm font-bold flex items-center gap-1.5">
+                <span>{currencyFormatter(formData.valorTotal)}</span>
+                {formData.descontoPercentual && formData.descontoPercentual > 0 ? (
+                  <span className="text-[10px] text-emerald-600 font-normal">(-{formData.descontoPercentual}%)</span>
+                ) : null}
               </span>
             </div>
 
@@ -250,18 +272,40 @@ export const LeadModal: React.FC<LeadModalProps> = ({
               </div>
             </div>
 
-            {/* Condições de Pagamento e Instalação */}
+            {/* Condições de Pagamento, Desconto, Instalação e Cor */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-slate-700 font-bold mb-1">Tabela Catálogo</label>
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Método de Pagamento</label>
                 <select
                   value={formData.condicaoPreco}
-                  onChange={(e) => handleRecalculatePrice(undefined, undefined, e.target.value as any)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none"
+                  onChange={(e) => handleRecalculatePrice(undefined, undefined, e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none font-medium"
                 >
-                  <option value="10x">💳 10x Sem Juros</option>
-                  <option value="avista">💵 À Vista (5% Desconto)</option>
-                  <option value="max10">🔥 Com 10% (MAX)</option>
+                  <option value="cartao_credito">💳 Cartão de Crédito</option>
+                  <option value="pix">⚡ PIX</option>
+                  <option value="boleto">📄 Boleto</option>
+                  <option value="pagamento_hora">🏪 Pagamento na Hora</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Desconto</label>
+                <select
+                  value={formData.descontoPercentual || 0}
+                  onChange={(e) => handleRecalculatePrice(undefined, undefined, undefined, Number(e.target.value))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none font-semibold text-brand-600"
+                >
+                  <option value={0}>Sem Desconto (0%)</option>
+                  <option value={1}>1% de Desconto</option>
+                  <option value={2}>2% de Desconto</option>
+                  <option value={3}>3% de Desconto</option>
+                  <option value={4}>4% de Desconto</option>
+                  <option value={5}>5% de Desconto</option>
+                  <option value={6}>6% de Desconto</option>
+                  <option value={7}>7% de Desconto</option>
+                  <option value={8}>8% de Desconto</option>
+                  <option value={9}>9% de Desconto</option>
+                  <option value={10}>10% de Desconto</option>
                 </select>
               </div>
 
@@ -269,7 +313,7 @@ export const LeadModal: React.FC<LeadModalProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">Serviço de Instalação</label>
                 <select
                   value={formData.custoInstalacao}
-                  onChange={(e) => handleRecalculatePrice(undefined, undefined, undefined, Number(e.target.value))}
+                  onChange={(e) => handleRecalculatePrice(undefined, undefined, undefined, undefined, Number(e.target.value))}
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:border-brand-500 focus:outline-none"
                 >
                   <option value={0}>Instalação na Loja (R$ 0)</option>
