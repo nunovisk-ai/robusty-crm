@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lead, FunnelStage, WhatsAppMessage, WhatsAppInstance } from '../../types';
-import { whatsappService, formatWhatsAppTimestamp, isValidContactName } from '../../services/whatsappService';
+import { whatsappService, formatWhatsAppTimestamp, isValidContactName, formatPhoneNumberString } from '../../services/whatsappService';
 import { formatCPF, isValidCPF } from '../../utils/cpfValidator';
 import { CurrencyInput } from '../common/CurrencyInput';
 import { LinkifiedText } from '../../utils/linkify';
@@ -652,6 +652,28 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
   ) => {
     setSelectedLeadId(id);
     markConversationRead(id, allJids, unreadMessageKeys);
+
+    const unlinked = unlinkedContactsRef.current.find(c => c.id === id);
+    if (unlinked && (!unlinked.telefone || unlinked.remoteJid.includes('@lid') || !isValidContactName(unlinked.nome))) {
+      whatsappService.resolveLidContact(session, unlinked.remoteJid).then(resolved => {
+        if (resolved.phoneJid || resolved.name) {
+          setUnlinkedContacts(prev =>
+            prev.map(c => {
+              if (c.id === unlinked.id || c.remoteJid === unlinked.remoteJid) {
+                return {
+                  ...c,
+                  nome: (resolved.name && isValidContactName(resolved.name)) ? resolved.name : c.nome,
+                  telefone: resolved.formattedPhone || c.telefone,
+                  rawPhone: resolved.phoneJid ? resolved.phoneJid.split('@')[0].replace(/\D/g, '') : c.rawPhone,
+                  profilePicUrl: resolved.picUrl || c.profilePicUrl,
+                };
+              }
+              return c;
+            })
+          );
+        }
+      }).catch(() => {});
+    }
   };
 
   // Audio Recording States
@@ -1138,6 +1160,36 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
           if ((!contact.profilePicUrl || brokenPicsRef.current[contact.profilePicUrl]) && contact.remoteJid) {
             whatsappService.fetchProfilePicture(session, contact.remoteJid, false, targetJids).then(url => {
               if (url) applyFetchedPictures({ [contact.remoteJid]: url });
+            }).catch(() => {});
+          }
+
+          if (!contact.telefone || !contact.rawPhone || contact.remoteJid.includes('@lid') || !isValidContactName(contact.nome)) {
+            whatsappService.resolveLidContact(session, contact.remoteJid).then(resolved => {
+              if (resolved.phoneJid || resolved.name) {
+                setUnlinkedContacts(prev =>
+                  prev.map(c => {
+                    if (c.id === contact.id || c.remoteJid === contact.remoteJid) {
+                      const newPhone = resolved.formattedPhone || c.telefone;
+                      const newRaw = resolved.phoneJid ? resolved.phoneJid.split('@')[0].replace(/\D/g, '') : c.rawPhone;
+                      const newName = (resolved.name && isValidContactName(resolved.name)) ? resolved.name : c.nome;
+                      const newAllJids = Array.from(new Set([
+                        ...(c.allJids || []),
+                        c.remoteJid,
+                        ...(resolved.phoneJid ? [resolved.phoneJid] : [])
+                      ]));
+                      return {
+                        ...c,
+                        nome: newName,
+                        telefone: newPhone,
+                        rawPhone: newRaw,
+                        allJids: newAllJids,
+                        profilePicUrl: resolved.picUrl || c.profilePicUrl,
+                      };
+                    }
+                    return c;
+                  })
+                );
+              }
             }).catch(() => {});
           }
         } else {
@@ -1680,14 +1732,24 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
     onUnreadCountChange?.(totalUnreadCount);
   }, [totalUnreadCount]);
 
+  const normalizeSearch = (s?: string | null) =>
+    s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() : '';
+
   // Filter unlinked contacts
   const filteredUnlinkedContacts = isConnected
     ? unlinkedContacts.filter(contact => {
+        const term = searchTerm.trim().toLowerCase();
+        const normTerm = normalizeSearch(term);
         const matchesSearch =
-          !searchTerm.trim() ||
-          contact.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          contact.telefone.includes(searchTerm) ||
-          contact.rawPhone.includes(searchTerm);
+          !term ||
+          contact.nome.toLowerCase().includes(term) ||
+          normalizeSearch(contact.nome).includes(normTerm) ||
+          contact.telefone.toLowerCase().includes(term) ||
+          contact.rawPhone.includes(term) ||
+          (contact.mensagem && (
+            contact.mensagem.toLowerCase().includes(term) ||
+            normalizeSearch(contact.mensagem).includes(normTerm)
+          ));
 
         const matchesRead = readFilter === 'all' || (contact.unreadCount || 0) > 0;
         const matchesStage = stageFilter === 'all' || stageFilter === 'sem_lead';
@@ -1699,11 +1761,22 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
   // Filter linked leads
   const filteredLeads = isConnected 
     ? leads.filter(lead => {
+        const term = searchTerm.trim().toLowerCase();
+        const normTerm = normalizeSearch(term);
+        const chatSnippet = realChatMap.get(lead.id)?.lastMessage;
         const matchesSearch = 
-          !searchTerm.trim() ||
-          lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          lead.telefone.includes(searchTerm) ||
-          (lead.empreendimentoInteresse && lead.empreendimentoInteresse.toLowerCase().includes(searchTerm.toLowerCase()));
+          !term ||
+          lead.nome.toLowerCase().includes(term) ||
+          normalizeSearch(lead.nome).includes(normTerm) ||
+          lead.telefone.includes(term) ||
+          (lead.empreendimentoInteresse && (
+            lead.empreendimentoInteresse.toLowerCase().includes(term) ||
+            normalizeSearch(lead.empreendimentoInteresse).includes(normTerm)
+          )) ||
+          (chatSnippet && (
+            chatSnippet.toLowerCase().includes(term) ||
+            normalizeSearch(chatSnippet).includes(normTerm)
+          ));
 
         if (stageFilter === 'sem_lead') return false;
 
@@ -2213,7 +2286,11 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate">
-                    <span>{isUnlinked ? unlinkedContact!.telefone : selectedLead!.telefone}</span>
+                    <span>
+                      {isUnlinked
+                        ? (unlinkedContact!.telefone || (unlinkedContact!.rawPhone ? formatPhoneNumberString(unlinkedContact!.rawPhone) : ''))
+                        : selectedLead!.telefone}
+                    </span>
                     {selectedLead?.empreendimentoInteresse && (
                       <>
                         <span>•</span>
@@ -2234,7 +2311,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                   <button
                     onClick={() => onOpenCreateLead?.({
                       nome: isValidContactName(unlinkedContact!.nome) ? unlinkedContact!.nome : '',
-                      telefone: unlinkedContact!.telefone || '',
+                      telefone: unlinkedContact!.telefone || (unlinkedContact!.rawPhone ? formatPhoneNumberString(unlinkedContact!.rawPhone) : ''),
                       sourceLidJid: unlinkedContact!.remoteJid.includes('@lid') ? unlinkedContact!.remoteJid : undefined,
                     })}
                     className="px-3 py-1.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
@@ -2612,7 +2689,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                     <span>Contato Sem Lead no Funil</span>
                   </div>
                   <p className="text-xs text-amber-900 leading-relaxed">
-                    Esta conversa foi iniciada pelo WhatsApp, mas o contato ainda não possui um card correspondente no Funil de Vendas do Grupo 3C.
+                    Esta conversa foi iniciada pelo WhatsApp, mas o contato ainda não possui um card correspondente no Funil de Vendas da Robusty Bagageiros Automotivos.
                   </p>
                 </div>
 
@@ -2624,7 +2701,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">Telefone:</span>
                     <span className="text-slate-800 font-medium">
-                      {unlinkedContact!.telefone || 'Identificando número...'}
+                      {unlinkedContact!.telefone || (unlinkedContact!.rawPhone ? formatPhoneNumberString(unlinkedContact!.rawPhone) : 'Identificando número...')}
                     </span>
                   </div>
                 </div>
@@ -2633,7 +2710,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
                   type="button"
                   onClick={() => onOpenCreateLead?.({
                     nome: isValidContactName(unlinkedContact!.nome) ? unlinkedContact!.nome : '',
-                    telefone: unlinkedContact!.telefone || '',
+                    telefone: unlinkedContact!.telefone || (unlinkedContact!.rawPhone ? formatPhoneNumberString(unlinkedContact!.rawPhone) : ''),
                     sourceLidJid: unlinkedContact!.remoteJid.includes('@lid') ? unlinkedContact!.remoteJid : undefined,
                   })}
                   className="w-full py-3 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
