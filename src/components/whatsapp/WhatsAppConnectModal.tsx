@@ -90,9 +90,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
         if (state === 'open') {
           const realPhone = await whatsappService.getConnectedPhone(session);
           await whatsappService.syncGroupLidMappings(session, true);
-          if (instance?.id) {
-            await whatsappService.setInstanceConnected(instance.id, realPhone || 'WhatsApp Conectado');
-          }
+          await whatsappService.setInstanceConnected(instance?.id || `inst-${session}`, realPhone || 'WhatsApp Conectado');
           onStatusChanged();
         }
       } catch (err) {
@@ -112,10 +110,9 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   };
 
   const handleConfirmDisconnect = async () => {
-    if (!instance) return;
     setIsConnecting(true);
     try {
-      await whatsappService.disconnectInstance(instance.id, session);
+      await whatsappService.disconnectInstance(instance?.id || `inst-${session}`, session);
       setIsConfirmDisconnectOpen(false);
       onStatusChanged();
     } catch (err) {
@@ -138,7 +135,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
               <WhatsAppIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="text-base font-bold">Conexão WhatsApp Web (Multi-Corretor)</h3>
+              <h3 className="text-base font-bold">Conexão WhatsApp Robusty</h3>
               <p className="text-xs text-emerald-100">
                 {corretorEmail}
               </p>
@@ -167,10 +164,10 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
                   ● Conexão Ativa e Espelhada
                 </span>
                 <h4 className="text-lg font-bold text-slate-900 mt-2">
-                  {instance?.phoneNumber || '(11) 98765-4321'}
+                  {instance?.phoneNumber || '(11) 96620-0052'}
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Conectado como sessão ativa do corretor <strong>Grupo 3C</strong>
+                  Conectado como canal oficial <strong>Robusty Bagageiros Automotivos</strong>
                 </p>
               </div>
 
@@ -314,8 +311,8 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
                         <rect x="56" y="58" width="6" height="6" fill="#1E293B" />
                         <rect x="66" y="56" width="4" height="4" fill="#1E293B" />
                         <rect x="84" y="58" width="4" height="4" fill="#1E293B" />
-                        <circle cx="50" cy="50" r="10" fill="white" stroke="#F68633" strokeWidth="2" />
-                        <text x="50" y="53" textAnchor="middle" fill="#F68633" fontSize="8" fontWeight="bold">3C</text>
+                        <circle cx="50" cy="50" r="10" fill="white" stroke="#0284C7" strokeWidth="2" />
+                        <text x="50" y="53" textAnchor="middle" fill="#0284C7" fontSize="8" fontWeight="bold">R</text>
                       </svg>
                     )}
                   </div>
@@ -345,13 +342,13 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
 
               </div>
 
-              {/* MULTI-CORRETOR DEDICATED SESSION INFO */}
+              {/* SESSÃO ROBUSTY OFICIAL INFO */}
               <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     <span className="text-xs font-bold text-emerald-950">
-                      Sessão Multi-Corretor Isolada
+                      Canal Comercial Oficial Robusty
                     </span>
                   </div>
                   <span className="text-[10px] font-mono font-semibold bg-emerald-200/60 text-emerald-900 px-2.5 py-0.5 rounded-full">
@@ -360,7 +357,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
                 </div>
 
                 <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  Cada corretor do <strong>Grupo 3C</strong> conecta exclusivamente o seu próprio WhatsApp. Suas conversas, contatos e mensagens ficam 100% restritos ao seu perfil de atendimento.
+                  Conecte o WhatsApp do seu celular. Todas as suas conversas, orçamentos e <strong>os contatos exatamente com os mesmos nomes salvos na sua agenda do aparelho</strong> serão sincronizados no CRM.
                 </p>
 
                 <div className="flex items-center gap-2 pt-1 text-[11px] text-emerald-700 font-medium">

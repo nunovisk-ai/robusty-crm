@@ -3,6 +3,7 @@ import { WhatsAppMessage, WhatsAppInstance, Lead } from '../types';
 
 export const EVOLUTION_API_URL = import.meta.env.VITE_EVOLUTION_API_URL || 'https://evolution.vitrai.com.br';
 export const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY || '3c_evolution_secret_994821';
+export const DEFAULT_SESSION_NAME = 'robusty_oficial';
 
 // Pre-seeded LID -> Phone JID mappings discovered from WhatsApp groups & metadata
 const INITIAL_LID_TO_PHONE: Record<string, string> = {
@@ -104,12 +105,12 @@ const PIC_EMPTY_TTL_MS = 10 * 60 * 1000; // 10 minutes (never cache missing phot
 const LID_PROBE_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 export function buildSessionName(corretorEmail: string): string {
-  const email = (corretorEmail || 'vendedor@grupo3c.com.br').trim().toLowerCase();
-  if (email.endsWith('@grupo3c.com.br')) {
-    const prefix = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
-    return `3c_${prefix}`;
+  if (!corretorEmail) return DEFAULT_SESSION_NAME;
+  const email = corretorEmail.trim().toLowerCase();
+  if (email.includes('robusty') || email.includes('comercial') || email.includes('vendedor') || email.includes('admin') || email.includes('norlando') || email.includes('igor')) {
+    return DEFAULT_SESSION_NAME;
   }
-  return `3c_${email.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  return `robusty_${email.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 }
 
 function extractMessageStatus(m: any): 'sent' | 'delivered' | 'read' | 'deleted' {
@@ -1380,13 +1381,19 @@ export const whatsappService = {
       const contactsMap = new Map<string, { name: string | null; profilePicUrl?: string | null }>();
       const firstNameToContactsMap = new Map<string, Array<{ jid: string; name: string; profilePicUrl: string | null }>>();
 
-      const mergeIntoContactsMap = (key: string, name: string | null, pic: string | null) => {
+      const mergeIntoContactsMap = (key: string, name: string | null, pic: string | null, isFromPhonebook: boolean = false) => {
         if (!key) return;
         const prev = contactsMap.get(key);
-        const bestName =
-          (name && (!prev?.name || (hasAlphabeticChar(name) && !hasAlphabeticChar(prev.name))))
-            ? name
-            : (prev?.name || name || null);
+        // Prioridade mandatória: se o nome vem da agenda do celular (c.name), ele tem precedência absoluta
+        let bestName: string | null = null;
+        if (isFromPhonebook && name) {
+          bestName = name;
+        } else if (prev?.name) {
+          bestName = prev.name;
+        } else {
+          bestName = name || null;
+        }
+
         const validPic = pic && !isPicUrlExpiredOrBroken(pic) ? pic : null;
         const prevValidPic = prev?.profilePicUrl && !isPicUrlExpiredOrBroken(prev.profilePicUrl) ? prev.profilePicUrl : null;
         contactsMap.set(key, {
@@ -1405,13 +1412,24 @@ export const whatsappService = {
           if (Array.isArray(rawContacts)) {
             let lidsFromContacts = false;
             for (const c of rawContacts) {
-              // Prefer saved address book name / verified business name when valid, otherwise pushName / notify
-              const candidateNames = [c.name, c.verifiedName, c.pushName, c.notify].filter(isValidContactName);
-              const rawName = (
-                candidateNames.find(n => hasAlphabeticChar(n)) ||
-                candidateNames[0] ||
-                null
-              )?.trim() || null;
+              // Prioridade absoluta: O nome salvo na agenda do celular do usuário (c.name).
+              // No Evolution API / Baileys:
+              // - c.name é o nome do contato salvo na agenda do telefone.
+              // - c.verifiedName é o nome verificado de conta comercial.
+              // - c.pushName / c.notify é o apelido escolhido pela própria pessoa no perfil dela.
+              let rawName: string | null = null;
+              let isFromPhonebook = false;
+
+              if (c.name && isValidContactName(c.name)) {
+                rawName = c.name.trim();
+                isFromPhonebook = true;
+              } else if (c.verifiedName && isValidContactName(c.verifiedName)) {
+                rawName = c.verifiedName.trim();
+              } else if (c.pushName && isValidContactName(c.pushName)) {
+                rawName = c.pushName.trim();
+              } else if (c.notify && isValidContactName(c.notify)) {
+                rawName = c.notify.trim();
+              }
 
               const rawPic = c.profilePicUrl || c.picture || null;
               const pic = rawPic && !isPicUrlExpiredOrBroken(rawPic) ? rawPic : null;
@@ -1433,7 +1451,7 @@ export const whatsappService = {
 
               const jidsToIndex = Array.from(new Set([primaryJid, lidJid, phoneCandidate].filter(Boolean)));
               for (const j of jidsToIndex) {
-                mergeIntoContactsMap(j, rawName, pic);
+                mergeIntoContactsMap(j, rawName, pic, isFromPhonebook);
               }
 
               if (phoneCandidate && phoneCandidate.includes('@s.whatsapp.net')) {
@@ -1455,14 +1473,14 @@ export const whatsappService = {
 
                 const digits = phoneCandidate.split('@')[0].replace(/\D/g, '');
                 if (digits) {
-                  mergeIntoContactsMap(digits, rawName, pic);
+                  mergeIntoContactsMap(digits, rawName, pic, isFromPhonebook);
                   if (digits.length >= 8) {
-                    mergeIntoContactsMap(digits.slice(-8), rawName, pic);
+                    mergeIntoContactsMap(digits.slice(-8), rawName, pic, isFromPhonebook);
                   }
                 }
                 const brKey = getBrCanonicalPhoneKey(phoneCandidate);
                 if (brKey !== phoneCandidate) {
-                  mergeIntoContactsMap(brKey, rawName, pic);
+                  mergeIntoContactsMap(brKey, rawName, pic, isFromPhonebook);
                 }
               }
             }
@@ -2539,53 +2557,38 @@ export const whatsappService = {
   },
 
   /**
-   * Gets or initializes the WhatsApp instance status for the broker
+   * Gets or initializes the WhatsApp instance status for Robusty
    */
-  async getInstanceStatus(corretorEmail: string = 'corretor@grupo3c.com.br', corretorId?: string): Promise<WhatsAppInstance> {
-    if (!isSupabaseConfigured) {
-      return {
-        id: 'demo-inst',
-        sessionName: '3c_vendedor',
-        status: 'disconnected'
-      };
-    }
-
+  async getInstanceStatus(corretorEmail: string = 'atendimento@robusty.com.br', corretorId?: string): Promise<WhatsAppInstance> {
     const cleanSessionName = buildSessionName(corretorEmail);
+    const localKey = `robusty_wa_instance_${cleanSessionName}`;
+    const cachedLocal = loadLocalCache(localKey);
 
     // Auto-ensure instance on Evolution API
     await this.ensureInstance(cleanSessionName);
 
-    const { data, error } = await supabase
-      .from('whatsapp_instances')
-      .select('*')
-      .or(`corretor_email.eq.${corretorEmail},session_name.eq.${cleanSessionName}`)
-      .maybeSingle();
+    let instanceRow: any = cachedLocal;
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching whatsapp instance:', error);
-    }
+    // Try fetching from Supabase if table exists
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_instances')
+          .select('*')
+          .or(`corretor_email.eq.${corretorEmail},session_name.eq.${cleanSessionName}`)
+          .maybeSingle();
 
-    let instanceRow = data;
-
-    if (!instanceRow) {
-      const newInstance = {
-        corretor_id: corretorId || null,
-        corretor_email: corretorEmail,
-        session_name: cleanSessionName,
-        status: 'disconnected',
-      };
-
-      const { data: created } = await supabase
-        .from('whatsapp_instances')
-        .insert([newInstance])
-        .select()
-        .single();
-      instanceRow = created;
+        if (!error && data) {
+          instanceRow = data;
+        }
+      } catch {
+        // Table does not exist in schema cache; continue with local storage
+      }
     }
 
     let currentStatus = instanceRow?.status || 'disconnected';
-    let currentPhone = instanceRow?.phone_number || null;
-    let currentQr = instanceRow?.qrcode_base64 || null;
+    let currentPhone = instanceRow?.phone_number || instanceRow?.phoneNumber || null;
+    let currentQr = instanceRow?.qrcode_base64 || instanceRow?.qrcodeBase64 || null;
 
     try {
       const liveState = await this.checkLiveConnectionState(cleanSessionName);
@@ -2595,66 +2598,91 @@ export const whatsappService = {
         if (detectedPhone) {
           currentPhone = detectedPhone;
         }
-        await supabase
-          .from('whatsapp_instances')
-          .update({
-            status: 'connected',
-            phone_number: currentPhone,
-            qrcode_base64: null,
-            last_sync_at: new Date().toISOString()
-          })
-          .eq('id', instanceRow.id);
+        currentQr = null;
       } else {
         // WhatsApp is NOT connected in Evolution API: keep as disconnected and fetch fresh QR code
         currentStatus = 'disconnected';
         currentPhone = null;
         currentQr = await this.fetchLiveQrCode(cleanSessionName);
-        await supabase
-          .from('whatsapp_instances')
-          .update({
-            status: 'disconnected',
-            phone_number: null,
-            qrcode_base64: currentQr,
-            last_sync_at: new Date().toISOString()
-          })
-          .eq('id', instanceRow.id);
       }
     } catch (err) {
       console.warn('Error checking live Evolution instance state:', err);
     }
 
-    return {
-      id: instanceRow?.id || 'inst-1',
-      corretorId: instanceRow?.corretor_id,
+    const result: WhatsAppInstance = {
+      id: instanceRow?.id || `inst-${cleanSessionName}`,
+      corretorId: instanceRow?.corretor_id || instanceRow?.corretorId,
       sessionName: cleanSessionName,
       phoneNumber: currentPhone,
       status: currentStatus,
       qrcodeBase64: currentQr,
-      connectedAt: instanceRow?.connected_at,
-      lastSyncAt: instanceRow?.last_sync_at,
+      connectedAt: currentStatus === 'connected' ? (instanceRow?.connected_at || new Date().toISOString()) : undefined,
+      lastSyncAt: new Date().toISOString(),
     };
+
+    saveLocalCache(localKey, result);
+
+    // Try updating Supabase gracefully if available
+    if (isSupabaseConfigured && instanceRow?.id) {
+      try {
+        await supabase
+          .from('whatsapp_instances')
+          .update({
+            status: currentStatus,
+            phone_number: currentPhone,
+            qrcode_base64: currentQr,
+            last_sync_at: new Date().toISOString()
+          })
+          .eq('id', instanceRow.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    return result;
   },
 
   /**
    * Connects the instance (supports demo one-click or QR code scanning)
    */
-  async setInstanceConnected(instanceId: string, phoneNumber: string = '(11) 98765-4321'): Promise<void> {
-    await supabase
-      .from('whatsapp_instances')
-      .update({
-        status: 'connected',
-        phone_number: phoneNumber,
-        connected_at: new Date().toISOString(),
-        last_sync_at: new Date().toISOString(),
-        qrcode_base64: null,
-      })
-      .eq('id', instanceId);
+  async setInstanceConnected(instanceId: string, phoneNumber: string = '(11) 96620-0052'): Promise<void> {
+    const cleanSessionName = DEFAULT_SESSION_NAME;
+    const localKey = `robusty_wa_instance_${cleanSessionName}`;
+    const cached = loadLocalCache(localKey) || {};
+    const updated = {
+      ...cached,
+      id: instanceId || `inst-${cleanSessionName}`,
+      sessionName: cleanSessionName,
+      status: 'connected',
+      phoneNumber,
+      connectedAt: new Date().toISOString(),
+      lastSyncAt: new Date().toISOString(),
+      qrcodeBase64: null,
+    };
+    saveLocalCache(localKey, updated);
+
+    if (isSupabaseConfigured && instanceId) {
+      try {
+        await supabase
+          .from('whatsapp_instances')
+          .update({
+            status: 'connected',
+            phone_number: phoneNumber,
+            connected_at: new Date().toISOString(),
+            last_sync_at: new Date().toISOString(),
+            qrcode_base64: null,
+          })
+          .eq('id', instanceId);
+      } catch {
+        // ignore
+      }
+    }
   },
 
   /**
    * Disconnects the WhatsApp instance from both Evolution API and Supabase
    */
-  async disconnectInstance(instanceId: string, sessionName: string = '3c_vendedor'): Promise<void> {
+  async disconnectInstance(instanceId: string, sessionName: string = DEFAULT_SESSION_NAME): Promise<void> {
     try {
       await fetch(`${EVOLUTION_API_URL}/instance/logout/${sessionName}`, {
         method: 'DELETE',
@@ -2670,50 +2698,65 @@ export const whatsappService = {
     }
     configuredSettingsSessions.delete(sessionName);
 
-    await supabase
-      .from('whatsapp_instances')
-      .update({
-        status: 'disconnected',
-        phone_number: null,
-        qrcode_base64: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', instanceId);
+    const localKey = `robusty_wa_instance_${sessionName}`;
+    saveLocalCache(localKey, {
+      id: instanceId,
+      sessionName,
+      status: 'disconnected',
+      phoneNumber: null,
+      qrcodeBase64: null,
+    });
+
+    if (isSupabaseConfigured && instanceId) {
+      try {
+        await supabase
+          .from('whatsapp_instances')
+          .update({
+            status: 'disconnected',
+            phone_number: null,
+            qrcode_base64: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', instanceId);
+      } catch {
+        // ignore
+      }
+    }
   },
 
   /**
-   * Pre-formatted quick real estate response templates for brokers
+   * Quick response templates for Robusty Bagageiros Automotivos
    */
   getQuickTemplates(lead?: Lead | null) {
     const nome = lead?.nome ? lead.nome.split(' ')[0] : 'Cliente';
-    const emp = lead?.empreendimentoInteresse || 'nossos lançamentos em São Paulo';
-    const parcela = lead?.rendaMensal ? `R$ ${(lead.rendaMensal * 0.3).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'uma parcela que cabe no seu bolso';
+    const veiculo = lead?.veiculoLinha || lead?.produtoNome || 'seu veículo utilitário';
+    const valor = lead?.valorTotal ? `R$ ${lead.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'consulte valor';
 
     return [
       {
         id: 'apresentacao',
-        titulo: 'Apresentação do Projeto',
-        texto: `Olá ${nome}! Tudo bem? Sou da equipe do *Grupo 3C Imobiliária*. Estou entrando em contato sobre o *${emp}*! Temos condições exclusivas pelo programa Minha Casa Minha Vida com subsídio e entrada parcelada direto com a construtora. Gostaria de receber o book de fotos e plantas no seu WhatsApp?`,
+        titulo: 'Apresentação Robusty',
+        texto: `Olá ${nome}! Tudo bem? Sou da equipe da *Robusty Bagageiros Automotivos* (Av. Aricanduva, 5.541 - SP). Estou entrando em contato referente ao bagageiro reforçado para *${veiculo}*! Trabalhamos com aço tubular de alta resistência e pintura eletrostática a pó. Gostaria de receber fotos e ficha técnica?`,
       },
       {
-        id: 'docs_caixa',
-        titulo: 'Lista de Docs Caixa',
-        texto: `Olá ${nome}! Para fazermos a sua análise de crédito com a Caixa Econômica Federal e garantir a taxa de juros mais baixa do mercado, precisamos dos seguintes documentos básicos:\n\n1. RG ou CNH (frente e verso)\n2. Comprovante de Residência recente (últimos 60 dias)\n3. 3 últimos Holerites\n4. Extrato do FGTS com saldo\n5. Certidão de Estado Civil (Nascimento ou Casamento)\n6. Declaração do Imposto de Renda (se declarar)\n\nPode me enviar por foto ou PDF aqui mesmo pelo WhatsApp! 👍`,
+        id: 'instalacao',
+        titulo: 'Instalação na Loja Gratuita',
+        texto: `Olá ${nome}! Nós oferecemos a *Instalação na Loja 100% Gratuita* aqui em nossa fábrica na Av. Aricanduva, 5.541. Nossa equipe técnica instala em cerca de 40 minutos com garantia total. Qual dia e horário fica melhor para agendarmos sua instalação?`,
       },
       {
-        id: 'visita',
-        titulo: 'Convite / Confirmação de Visita',
-        texto: `Olá ${nome}! O que acha de darmos um pulo no plantão do *${emp}* para você conhecer o apartamento decorado em tamanho real e tirar todas as dúvidas? Posso agendar para você amanhã ou no próximo sábado! Qual horário fica melhor para você?`,
+        id: 'pagamento_desconto',
+        titulo: 'Condições de Pagamento & Desconto',
+        texto: `Olá ${nome}! Para o bagageiro do seu *${veiculo}*, temos condições especiais: no *PIX* você tem *10% de desconto*, no *Boleto* 5% de desconto, ou podemos parcelar no *Cartão de Crédito*. Se preferir, também aceitamos *Pagamento na Hora* na instalação! Como prefere fechar?`,
       },
       {
-        id: 'simulacao',
-        titulo: 'Simulação de Financiamento',
-        texto: `Olá ${nome}! Fizemos um estudo prévio do seu perfil com base na sua renda: sua parcela máxima estimada pelo Minha Casa Minha Vida fica em torno de *${parcela}* mensais! E podemos usar o seu saldo de FGTS para abater a entrada. Ficou com alguma dúvida sobre o fluxo?`,
+        id: 'coleta_transportadora',
+        titulo: 'Envio / Transportadora',
+        texto: `Olá ${nome}! Caso não possa retirar em nossa loja em SP, despachamos com segurança para todo o Brasil via transportadora com Nota Fiscal e seguro total. Me passa seu CEP para eu calcular o frete e prazo de entrega?`,
       },
       {
         id: 'localizacao',
-        titulo: 'Localização do Plantão',
-        texto: `Segue o endereço do nosso plantão de vendas do *${emp}*! Temos estacionamento no local e atendimento com café e maquete completa. Quando estiver a caminho, me avise para eu te recepcionar na portaria! 🏢✨`,
+        titulo: 'Localização da Loja / Fábrica',
+        texto: `Segue o endereço oficial da *Robusty Bagageiros Automotivos*:\n📍 Av. Aricanduva, 5.541 - São Paulo/SP.\nNosso horário de atendimento é de Segunda a Sexta das 08h às 18h e Sábados das 08h às 13h. Quando estiver vindo me avisa para a equipe já deixar seu bagageiro separado! 🚗📦`,
       }
     ];
   }

@@ -488,7 +488,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
   onUnreadCountChange
 }) => {
   const isConnected = instance?.status === 'connected';
-  const session = instance?.sessionName || '3c_vendedor';
+  const session = instance?.sessionName || 'robusty_oficial';
 
   const [unlinkedContacts, setUnlinkedContacts] = useState<UnlinkedContact[]>([]);
   const [realChatMap, setRealChatMap] = useState<Map<string, any>>(new Map());

@@ -14,6 +14,7 @@ import { UserManagerView } from './components/users/UserManagerView';
 import { Lead, FunnelStage, WhatsAppInstance } from './types';
 import { leadsService } from './services/leadsService';
 import { empreendimentosService, Empreendimento } from './services/empreendimentosService';
+import { whatsappService } from './services/whatsappService';
 
 const AppContent: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -36,25 +37,21 @@ const AppContent: React.FC = () => {
   // WhatsApp
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [chatTargetLeadId, setChatTargetLeadId] = useState<string | null>(null);
-  const [whatsappInstance, setWhatsappInstance] = useState<WhatsAppInstance | null>({
-    id: 'inst-robusty-1',
-    sessionName: 'robusty_comercial',
-    phoneNumber: '5511966200052',
-    status: 'connected',
-    connectedAt: new Date().toISOString()
-  });
+  const [whatsappInstance, setWhatsappInstance] = useState<WhatsAppInstance | null>(null);
 
   const loadData = async () => {
     setIsLeadsLoading(true);
     try {
-      const [leadsData, empsData] = await Promise.all([
+      const [leadsData, empsData, waInst] = await Promise.all([
         leadsService.getLeads(),
-        empreendimentosService.getEmpreendimentos()
+        empreendimentosService.getEmpreendimentos(),
+        whatsappService.getInstanceStatus(user?.email || 'atendimento@robusty.com.br')
       ]);
       setLeads(leadsData);
       setEmpreendimentos(empsData);
+      setWhatsappInstance(waInst);
     } catch (err) {
-      console.error('Failed to load leads:', err);
+      console.error('Failed to load leads / instance:', err);
     } finally {
       setIsLeadsLoading(false);
     }
@@ -128,8 +125,10 @@ const AppContent: React.FC = () => {
         setActiveFunnelType(type);
         setActiveTab('kanban');
       }}
+      isWhatsAppConnected={whatsappInstance?.status === 'connected'}
+      whatsappPhone={whatsappInstance?.phoneNumber || undefined}
       onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
-      unreadWhatsAppCount={2}
+      unreadWhatsAppCount={0}
     >
       {activeTab === 'kanban' && (
         <KanbanBoard
