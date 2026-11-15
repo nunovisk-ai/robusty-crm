@@ -35,7 +35,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   activeTab, 
   onTabChange,
   isWhatsAppConnected = true,
-  whatsappPhone = '(11) 96620-0052',
+  whatsappPhone = '(11) 91417-2592',
   unreadWhatsAppCount = 2,
   onOpenWhatsAppModal,
   activeFunnelType = 'leads',
@@ -260,7 +260,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500 animate-pulse" />
                 <WhatsAppIcon className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />
                 <span className="font-semibold truncate">
-                  (11) 96620-0052 • Ativo
+                  {whatsappPhone || '(11) 91417-2592'} • Ativo
                 </span>
               </div>
             </div>

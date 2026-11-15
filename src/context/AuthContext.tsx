@@ -24,7 +24,7 @@ const DEFAULT_ROBUSTY_USER: UserProfile = {
   email: 'norlando@robusty.com.br',
   role: 'comercial',
   cargo: 'Comercial & Atendimento',
-  phone: '(11) 96620-0052',
+  phone: '(11) 91417-2592',
   status: 'ativo',
   whatsappConnected: true,
   createdAt: new Date().toISOString()
@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: 'ricardo@robusty.com.br',
         role: 'admin',
         cargo: 'Diretor de Projetos Robusty',
-        phone: '(11) 96620-0052',
+        phone: '(11) 91417-2592',
         status: 'ativo'
       };
     }

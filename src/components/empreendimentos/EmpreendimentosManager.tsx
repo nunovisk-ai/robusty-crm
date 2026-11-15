@@ -55,7 +55,7 @@ export const EmpreendimentosManager: React.FC<EmpreendimentosManagerProps> = ({
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-1">
           <p className="font-bold text-slate-800">Fábrica & Showroom São Paulo</p>
           <p className="text-slate-500">Av. Aricanduva, 5.541 - Vila Aricanduva</p>
-          <p className="text-emerald-700 font-semibold font-mono">WhatsApp: (11) 96620-0052</p>
+          <p className="text-emerald-700 font-semibold font-mono">WhatsApp: (11) 91417-2592</p>
         </div>
       </div>
 

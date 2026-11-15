@@ -126,7 +126,7 @@ const AppContent: React.FC = () => {
         setActiveTab('kanban');
       }}
       isWhatsAppConnected={whatsappInstance?.status === 'connected'}
-      whatsappPhone={whatsappInstance?.phoneNumber || undefined}
+      whatsappPhone={whatsappInstance?.phoneNumber || '(11) 91417-2592'}
       onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
       unreadWhatsAppCount={0}
     >

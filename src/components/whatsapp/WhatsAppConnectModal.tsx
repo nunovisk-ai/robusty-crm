@@ -164,7 +164,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
                   ● Conexão Ativa e Espelhada
                 </span>
                 <h4 className="text-lg font-bold text-slate-900 mt-2">
-                  {instance?.phoneNumber || '(11) 96620-0052'}
+                  {instance?.phoneNumber || '(11) 91417-2592'}
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Conectado como canal oficial <strong>Robusty Bagageiros Automotivos</strong>

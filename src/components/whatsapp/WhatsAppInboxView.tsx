@@ -67,6 +67,7 @@ interface UnlinkedContact {
   nome: string;
   telefone: string;
   rawPhone: string;
+  profilePushName?: string | null;
   mensagem: string;
   enviadaAt: string;
   unreadCount?: number;
@@ -976,6 +977,7 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
             nome: chat.pushName || chat.name || chat.phone || 'Contato WhatsApp',
             telefone: chat.phone,
             rawPhone: chat.rawPhone,
+            profilePushName: chat.profilePushName,
             mensagem: finalLastMessage || 'Conversa iniciada via WhatsApp',
             enviadaAt: finalTimestamp || new Date().toISOString(),
             unreadCount: effectiveUnread,
@@ -1738,53 +1740,49 @@ export const WhatsAppInboxView: React.FC<WhatsAppInboxViewProps> = ({
   // Filter unlinked contacts
   const filteredUnlinkedContacts = isConnected
     ? unlinkedContacts.filter(contact => {
-        const term = searchTerm.trim().toLowerCase();
-        const normTerm = normalizeSearch(term);
-        const matchesSearch =
-          !term ||
-          contact.nome.toLowerCase().includes(term) ||
-          normalizeSearch(contact.nome).includes(normTerm) ||
-          contact.telefone.toLowerCase().includes(term) ||
-          contact.rawPhone.includes(term) ||
-          (contact.mensagem && (
-            contact.mensagem.toLowerCase().includes(term) ||
-            normalizeSearch(contact.mensagem).includes(normTerm)
-          ));
-
         const matchesRead = readFilter === 'all' || (contact.unreadCount || 0) > 0;
         const matchesStage = stageFilter === 'all' || stageFilter === 'sem_lead';
+        if (!matchesRead || !matchesStage) return false;
 
-        return matchesSearch && matchesRead && matchesStage;
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+
+        const tokens = term.split(/\s+/).filter(Boolean);
+        const searchableRaw = `${contact.nome} ${contact.telefone} ${contact.rawPhone} ${contact.profilePushName || ''} ${contact.mensagem || ''}`.toLowerCase();
+        const searchableNorm = normalizeSearch(`${contact.nome} ${contact.telefone} ${contact.rawPhone} ${contact.profilePushName || ''} ${contact.mensagem || ''}`);
+
+        return tokens.every(tok => {
+          const normTok = normalizeSearch(tok);
+          return searchableRaw.includes(tok) || searchableNorm.includes(normTok);
+        });
       })
     : [];
 
   // Filter linked leads
   const filteredLeads = isConnected 
     ? leads.filter(lead => {
-        const term = searchTerm.trim().toLowerCase();
-        const normTerm = normalizeSearch(term);
-        const chatSnippet = realChatMap.get(lead.id)?.lastMessage;
-        const matchesSearch = 
-          !term ||
-          lead.nome.toLowerCase().includes(term) ||
-          normalizeSearch(lead.nome).includes(normTerm) ||
-          lead.telefone.includes(term) ||
-          (lead.empreendimentoInteresse && (
-            lead.empreendimentoInteresse.toLowerCase().includes(term) ||
-            normalizeSearch(lead.empreendimentoInteresse).includes(normTerm)
-          )) ||
-          (chatSnippet && (
-            chatSnippet.toLowerCase().includes(term) ||
-            normalizeSearch(chatSnippet).includes(normTerm)
-          ));
-
         if (stageFilter === 'sem_lead') return false;
 
         const unread = realChatMap.get(lead.id)?.unreadCount || 0;
         const matchesRead = readFilter === 'all' || unread > 0;
         const matchesStage = stageFilter === 'all' || lead.statusFunil === stageFilter;
+        if (!matchesRead || !matchesStage) return false;
 
-        return matchesSearch && matchesRead && matchesStage;
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+
+        const tokens = term.split(/\s+/).filter(Boolean);
+        const realChat = realChatMap.get(lead.id);
+        const chatSnippet = realChat?.lastMessage || '';
+        const profilePush = realChat?.profilePushName || '';
+
+        const searchableRaw = `${lead.nome} ${lead.telefone} ${lead.empreendimentoInteresse || ''} ${chatSnippet} ${profilePush}`.toLowerCase();
+        const searchableNorm = normalizeSearch(`${lead.nome} ${lead.telefone} ${lead.empreendimentoInteresse || ''} ${chatSnippet} ${profilePush}`);
+
+        return tokens.every(tok => {
+          const normTok = normalizeSearch(tok);
+          return searchableRaw.includes(tok) || searchableNorm.includes(normTok);
+        });
       })
     : [];
 

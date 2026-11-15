@@ -12,7 +12,7 @@ export const UserManagerView: React.FC = () => {
       role: 'Comercial & Atendimento',
       roleType: 'comercial' as const,
       email: 'norlando@robusty.com.br',
-      phone: '(11) 96620-0052',
+      phone: '(11) 91417-2592',
       color: 'bg-orange-50 border-orange-200 text-brand-700',
       badge: '🟠 COMERCIAL',
       responsibilities: [

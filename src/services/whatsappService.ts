@@ -88,7 +88,8 @@ const INITIAL_LID_TO_PHONE: Record<string, string> = {
   "279070046703684@lid": "5511913660034@s.whatsapp.net",
   "191796764274812@lid": "5511996502507@s.whatsapp.net",
   "264007730593934@lid": "5511932143211@s.whatsapp.net",
-  "157810570621056@lid": "5511939603294@s.whatsapp.net"
+  "157810570621056@lid": "5511939603294@s.whatsapp.net",
+  "94742834601995@lid": "5511977345838@s.whatsapp.net"
 };
 
 const lidMemoryCache = new Map<string, string>(Object.entries(INITIAL_LID_TO_PHONE));
@@ -772,66 +773,30 @@ export const whatsappService = {
     if (!isForce && syncedGroupSessions.has(sessionName)) return;
 
     try {
-      let groupJids = Array.isArray(groupJidsOrForce) ? groupJidsOrForce : [];
-      if (groupJids.length === 0) {
-        const chatsRes = await fetch(`${EVOLUTION_API_URL}/chat/findChats/${sessionName}`, {
-          method: 'POST',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        });
-        if (chatsRes.ok) {
-          const raw = await chatsRes.json();
-          if (Array.isArray(raw)) {
-            groupJids = raw
-              .filter((c: any) => c.remoteJid && c.remoteJid.includes('@g.us'))
-              .map((c: any) => c.remoteJid);
-          }
-        }
-      }
-
-      if (groupJids.length === 0) return;
       syncedGroupSessions.add(sessionName);
-
-      const stored = loadLocalCache(`3c_lid_map_${sessionName}`);
+      const stored = loadLocalCache<Record<string, string>>(`3c_lid_map_${sessionName}`);
       let updated = false;
-      const targetGroups = groupJids.slice(0, 60);
-      const batchSize = 15;
 
-      for (let i = 0; i < targetGroups.length; i += batchSize) {
-        const batch = targetGroups.slice(i, i + batchSize);
-        const results = await Promise.allSettled(
-          batch.map(async gJid => {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-            try {
-              const r = await fetch(
-                `${EVOLUTION_API_URL}/group/findGroupInfos/${sessionName}?groupJid=${encodeURIComponent(gJid)}`,
-                {
-                  method: 'GET',
-                  headers: { apikey: EVOLUTION_API_KEY },
-                  signal: controller.signal,
-                }
-              );
-              clearTimeout(timeoutId);
-              return r.ok ? await r.json() : null;
-            } catch {
-              clearTimeout(timeoutId);
-              return null;
-            }
-          })
-        );
-
-        for (const res of results) {
-          if (res.status === 'fulfilled' && res.value?.participants) {
-            for (const p of res.value.participants) {
-              if (p.id?.includes('@lid') && p.phoneNumber?.includes('@s.whatsapp.net')) {
-                lidMemoryCache.set(p.id, p.phoneNumber);
-                if (stored[p.id] !== p.phoneNumber) {
-                  stored[p.id] = p.phoneNumber;
-                  updated = true;
+      // 1. Instantly fetch all groups and their participants with a single request (harvests 3,500+ LIDs!)
+      const allGroupsRes = await fetch(`${EVOLUTION_API_URL}/group/fetchAllGroups/${sessionName}?getParticipants=true`, {
+        headers: { apikey: EVOLUTION_API_KEY },
+      });
+      if (allGroupsRes.ok) {
+        const rawGroups = await allGroupsRes.json();
+        if (Array.isArray(rawGroups)) {
+          for (const g of rawGroups) {
+            if (Array.isArray(g.participants)) {
+              for (const p of g.participants) {
+                const lid = p.id?.includes('@lid') ? p.id : (p.lid?.includes('@lid') ? p.lid : null);
+                const phone = p.phoneNumber?.includes('@s.whatsapp.net')
+                  ? p.phoneNumber
+                  : (p.id?.includes('@s.whatsapp.net') ? p.id : null);
+                if (lid && phone) {
+                  lidMemoryCache.set(lid, phone);
+                  if (stored[lid] !== phone) {
+                    stored[lid] = phone;
+                    updated = true;
+                  }
                 }
               }
             }
@@ -1008,9 +973,9 @@ export const whatsappService = {
         this.registerLidMapping(sessionName, jid, matchedContact.jid);
         if (matchedContact.name) {
           nameMemoryCache.set(jid, matchedContact.name);
-          const storedNames = loadLocalCache(`3c_name_cache_${sessionName}`);
+          const storedNames = loadLocalCache(`3c_phonebook_v2_${sessionName}`);
           storedNames[jid] = matchedContact.name;
-          saveLocalCache(`3c_name_cache_${sessionName}`, storedNames);
+          saveLocalCache(`3c_phonebook_v2_${sessionName}`, storedNames);
         }
       }
     }
@@ -1080,7 +1045,7 @@ export const whatsappService = {
 
     if (lidOrJid.includes('@s.whatsapp.net')) {
       const raw = lidOrJid.split('@')[0].replace(/\D/g, '');
-      const name = nameMemoryCache.get(lidOrJid) || loadLocalCache<Record<string, string>>(`3c_name_cache_${sessionName}`)[lidOrJid] || null;
+      const name = nameMemoryCache.get(lidOrJid) || loadLocalCache<Record<string, string>>(`3c_phonebook_v2_${sessionName}`)[lidOrJid] || null;
       const picUrl = picMemoryCache.get(lidOrJid)?.url || null;
       return {
         phoneJid: lidOrJid,
@@ -1105,9 +1070,9 @@ export const whatsappService = {
             this.registerLidMapping(sessionName, lidOrJid, matched.jid);
             if (matched.name) {
               nameMemoryCache.set(lidOrJid, matched.name);
-              const storedNames = loadLocalCache<Record<string, string>>(`3c_name_cache_${sessionName}`);
+              const storedNames = loadLocalCache<Record<string, string>>(`3c_phonebook_v2_${sessionName}`);
               storedNames[lidOrJid] = matched.name;
-              saveLocalCache(`3c_name_cache_${sessionName}`, storedNames);
+              saveLocalCache(`3c_phonebook_v2_${sessionName}`, storedNames);
             }
           }
         }
@@ -1152,7 +1117,7 @@ export const whatsappService = {
 
     let finalName: string | null = nameMemoryCache.get(lidOrJid) || (mappedPhone ? nameMemoryCache.get(mappedPhone) : null) || null;
     if (!finalName) {
-      const stored = loadLocalCache<Record<string, string>>(`3c_name_cache_${sessionName}`);
+      const stored = loadLocalCache<Record<string, string>>(`3c_phonebook_v2_${sessionName}`);
       finalName = stored[lidOrJid] || (mappedPhone ? stored[mappedPhone] : null) || null;
     }
 
@@ -1170,7 +1135,7 @@ export const whatsappService = {
 
   /**
    * Background resolver for @lid chats or nameless chats whose messages weren't in the global top 500 window.
-   * Queries per-chat findMessages to discover remoteJidAlt (phone) and pushName/self-intro names.
+   * Queries per-chat findMessages to discover remoteJidAlt (phone).
    */
   async resolveUnresolvedChats(
     sessionName: string,
@@ -1191,7 +1156,6 @@ export const whatsappService = {
     }
 
     const storedLids = loadLocalCache(`3c_lid_map_${sessionName}`);
-    const storedNames = loadLocalCache(`3c_name_cache_${sessionName}`);
     let discoveredLids = 0;
     let discoveredNames = 0;
 
@@ -1233,56 +1197,24 @@ export const whatsappService = {
       if (!Array.isArray(records) || records.length === 0) continue;
 
       let mappedPhoneJid: string | null = null;
-      let discoveredName: string | null = null;
-      let fallbackTextName: string | null = null;
 
       for (const m of records) {
         const alt = m.key?.remoteJidAlt || m.key?.participantAlt;
         if (jid.includes('@lid') && alt && alt.includes('@s.whatsapp.net')) {
           mappedPhoneJid = alt;
         }
-        if (!m.key?.fromMe && isValidContactName(m.pushName)) {
-          const candidate = m.pushName.trim();
-          if (!discoveredName || (hasAlphabeticChar(candidate) && !hasAlphabeticChar(discoveredName))) {
-            discoveredName = candidate;
-          }
-        }
-        if (!fallbackTextName && m.message) {
-          const parsed = parseWhatsAppMessageContent(m.message);
-          if (parsed.text && !parsed.mediaType) {
-            const ext = extractNameFromMessageText(parsed.text, Boolean(m.key?.fromMe));
-            if (ext && isValidContactName(ext)) {
-              fallbackTextName = ext;
-            }
-          }
-        }
       }
-
-      const finalName = discoveredName || fallbackTextName;
 
       if (mappedPhoneJid && lidMemoryCache.get(jid) !== mappedPhoneJid) {
         lidMemoryCache.set(jid, mappedPhoneJid);
         storedLids[jid] = mappedPhoneJid;
         discoveredLids++;
       }
-
-      if (finalName && isValidContactName(finalName)) {
-        if (nameMemoryCache.get(jid) !== finalName) {
-          nameMemoryCache.set(jid, finalName);
-          storedNames[jid] = finalName;
-          discoveredNames++;
-        }
-        if (mappedPhoneJid && !nameMemoryCache.has(mappedPhoneJid)) {
-          nameMemoryCache.set(mappedPhoneJid, finalName);
-          storedNames[mappedPhoneJid] = finalName;
-        }
-      }
     }
 
     if (discoveredLids > 0) saveLocalCache(`3c_lid_map_${sessionName}`, storedLids);
-    if (discoveredNames > 0) saveLocalCache(`3c_name_cache_${sessionName}`, storedNames);
 
-    return { discoveredLids, discoveredNames };
+    return { discoveredLids, discoveredNames: 0 };
   },
 
   /**
@@ -1290,6 +1222,13 @@ export const whatsappService = {
    */
   async getRealChats(sessionName: string = '3c_vendedor'): Promise<any[]> {
     try {
+      // Purge legacy corrupted pushName caches from browser that caused non-saved contacts to display nicknames
+      try {
+        localStorage.removeItem(`3c_name_cache_${sessionName}`);
+        localStorage.removeItem('3c_name_cache_robusty_oficial');
+        localStorage.removeItem('3c_name_cache_3c_vendedor');
+      } catch {}
+
       // Hydrate caches from localStorage
       const storedLids = loadLocalCache(`3c_lid_map_${sessionName}`);
       for (const [k, v] of Object.entries(storedLids)) {
@@ -1297,7 +1236,7 @@ export const whatsappService = {
           lidMemoryCache.set(k, v);
         }
       }
-      const storedNames = loadLocalCache(`3c_name_cache_${sessionName}`);
+      const storedNames = loadLocalCache(`3c_phonebook_v2_${sessionName}`);
       for (const [k, v] of Object.entries(storedNames)) {
         if (isValidContactName(v)) nameMemoryCache.set(k, v);
       }
@@ -1375,12 +1314,11 @@ export const whatsappService = {
       }>();
       const statusRank: Record<'sent' | 'delivered' | 'read', number> = { sent: 1, delivered: 2, read: 3 };
 
-      const fallbackTextNamesByJid = new Map<string, string>();
+      const strangerProfileNamesByJid = new Map<string, string>();
       if (recentMsgsRes.status === 'fulfilled' && recentMsgsRes.value.ok) {
         try {
           const msgData = await recentMsgsRes.value.json();
           const records = msgData?.messages?.records || (Array.isArray(msgData) ? msgData : []);
-          let namesUpdated = false;
           let lidsUpdated = false;
 
           for (const m of records) {
@@ -1394,14 +1332,10 @@ export const whatsappService = {
             if (!m.key?.fromMe && isValidContactName(m.pushName)) {
               const validPush = m.pushName.trim();
               if (jid && !jid.includes('@g.us')) {
-                nameMemoryCache.set(jid, validPush);
-                storedNames[jid] = validPush;
-                namesUpdated = true;
+                strangerProfileNamesByJid.set(jid, validPush);
               }
               if (alt && !alt.includes('@g.us')) {
-                nameMemoryCache.set(alt, validPush);
-                storedNames[alt] = validPush;
-                namesUpdated = true;
+                strangerProfileNamesByJid.set(alt, validPush);
               }
             }
 
@@ -1429,16 +1363,6 @@ export const whatsappService = {
               ]));
 
               const parsedContent = parseWhatsAppMessageContent(m.message);
-              if (!parsedContent.isReaction && parsedContent.text && !parsedContent.mediaType) {
-                const extName = extractNameFromMessageText(parsedContent.text, fromMe);
-                if (extName && isValidContactName(extName)) {
-                  for (const tj of targetJids) {
-                    if (!fallbackTextNamesByJid.has(tj)) {
-                      fallbackTextNamesByJid.set(tj, extName);
-                    }
-                  }
-                }
-              }
               if (!parsedContent.isReaction && parsedContent.sidebarText) {
                 for (const tj of targetJids) {
                   const prevLatest = latestMessageByJid.get(tj);
@@ -1484,15 +1408,7 @@ export const whatsappService = {
               }
             }
           }
-          for (const [tj, extName] of fallbackTextNamesByJid.entries()) {
-            if (!nameMemoryCache.has(tj)) {
-              nameMemoryCache.set(tj, extName);
-              storedNames[tj] = extName;
-              namesUpdated = true;
-            }
-          }
           if (lidsUpdated) saveLocalCache(`3c_lid_map_${sessionName}`, storedLids);
-          if (namesUpdated) saveLocalCache(`3c_name_cache_${sessionName}`, storedNames);
         } catch {
           // ignore
         }
@@ -1538,20 +1454,20 @@ export const whatsappService = {
               // - c.name é o nome do contato salvo na agenda do telefone.
               // - c.pushName com c.isSaved === true é o nome gravado na agenda do telefone.
               // - c.verifiedName é o nome verificado de conta comercial.
-              // - c.pushName / c.notify é o apelido do contato.
+              // REGRA ESTRITA: Somente contatos que estão salvos no celular do usuário (isSaved === true ou c.name) possuem nome.
+              // Contatos desconhecidos / não salvos permanecem sem nome para mostrar o número de telefone no CRM!
               let rawName: string | null = null;
               let isFromPhonebook = false;
 
               if (c.name && isValidContactName(c.name)) {
                 rawName = c.name.trim();
                 isFromPhonebook = true;
-              } else if (c.pushName && isValidContactName(c.pushName)) {
+              } else if (c.isSaved && c.pushName && isValidContactName(c.pushName)) {
                 rawName = c.pushName.trim();
-                if (c.isSaved) isFromPhonebook = true;
+                isFromPhonebook = true;
               } else if (c.verifiedName && isValidContactName(c.verifiedName)) {
                 rawName = c.verifiedName.trim();
-              } else if (c.notify && isValidContactName(c.notify)) {
-                rawName = c.notify.trim();
+                isFromPhonebook = true;
               }
 
               const rawPic = c.profilePicUrl || c.picture || null;
@@ -1589,16 +1505,38 @@ export const whatsappService = {
                 ...mappedLidsForPhone
               ].filter(Boolean)));
 
-              for (const j of jidsToIndex) {
-                mergeIntoContactsMap(j, rawName, pic, isFromPhonebook);
-                if (rawName && isValidContactName(rawName)) {
+              if (rawName && isFromPhonebook) {
+                for (const j of jidsToIndex) {
+                  mergeIntoContactsMap(j, rawName, pic, true);
                   nameMemoryCache.set(j, rawName);
                   storedNames[j] = rawName;
                   namesUpdated = true;
                 }
+              } else {
+                for (const j of jidsToIndex) {
+                  mergeIntoContactsMap(j, null, pic, false);
+                  if (nameMemoryCache.has(j)) {
+                    nameMemoryCache.delete(j);
+                  }
+                  if (storedNames[j]) {
+                    delete storedNames[j];
+                    namesUpdated = true;
+                  }
+                }
               }
 
               if (phoneCandidate && phoneCandidate.includes('@s.whatsapp.net')) {
+                // If an unmapped LID in strangerProfileNamesByJid shares this exact pushName, link them!
+                if (rawName) {
+                  for (const [sJid, sName] of strangerProfileNamesByJid.entries()) {
+                    if (sJid.includes('@lid') && !lidMemoryCache.has(sJid) && sName.toLowerCase() === rawName.toLowerCase()) {
+                      lidMemoryCache.set(sJid, phoneCandidate);
+                      storedLids[sJid] = phoneCandidate;
+                      lidsFromContacts = true;
+                    }
+                  }
+                }
+
                 const fname = extractPicFilename(pic);
                 if (fname) {
                   picFileToContactCache.set(fname, { jid: phoneCandidate, name: rawName });
@@ -1617,20 +1555,20 @@ export const whatsappService = {
 
                 const digits = phoneCandidate.split('@')[0].replace(/\D/g, '');
                 if (digits) {
-                  mergeIntoContactsMap(digits, rawName, pic, isFromPhonebook);
-                  if (rawName && isValidContactName(rawName)) {
+                  if (rawName && isFromPhonebook) {
+                    mergeIntoContactsMap(digits, rawName, pic, true);
                     nameMemoryCache.set(digits, rawName);
                     storedNames[digits] = rawName;
                     namesUpdated = true;
-                  }
-                  if (digits.length >= 8) {
-                    mergeIntoContactsMap(digits.slice(-8), rawName, pic, isFromPhonebook);
+                    if (digits.length >= 8) {
+                      mergeIntoContactsMap(digits.slice(-8), rawName, pic, true);
+                    }
                   }
                 }
                 const brKey = getBrCanonicalPhoneKey(phoneCandidate);
                 if (brKey !== phoneCandidate) {
-                  mergeIntoContactsMap(brKey, rawName, pic, isFromPhonebook);
-                  if (rawName && isValidContactName(rawName)) {
+                  if (rawName && isFromPhonebook) {
+                    mergeIntoContactsMap(brKey, rawName, pic, true);
                     nameMemoryCache.set(brKey, rawName);
                     storedNames[brKey] = rawName;
                     namesUpdated = true;
@@ -1639,7 +1577,7 @@ export const whatsappService = {
               }
             }
             if (namesUpdated) {
-              saveLocalCache(`3c_name_cache_${sessionName}`, storedNames);
+              saveLocalCache(`3c_phonebook_v2_${sessionName}`, storedNames);
             }
             if (lidsFromContacts) {
               saveLocalCache(`3c_lid_map_${sessionName}`, storedLids);
@@ -1869,13 +1807,8 @@ export const whatsappService = {
         if (!resolvedName) {
           for (const mc of mergedChats) {
             const chatLevelCandidates = [
-              mc.name,
+              mc.verifiedBizName,
               mc.verifiedName,
-              mc.contact?.name,
-              mc.contact?.pushName,
-              mc.lastMessage?.key?.fromMe === false ? mc.lastMessage?.pushName : null,
-              mc.lastMessage?.verifiedBizName,
-              mc.pushName,
             ];
             const found = chatLevelCandidates.find(n => isValidContactName(n));
             if (found) {
@@ -1885,10 +1818,16 @@ export const whatsappService = {
           }
         }
 
-        if (!resolvedName && lastMsg) {
-          const extracted = extractNameFromMessageText(lastMsg, lastFromMe);
-          if (extracted && isValidContactName(extracted)) {
-            resolvedName = extracted;
+        // Stranger profile nickname (e.g. Ju, Zé) used strictly for search matching, never displayed as phonebook name
+        let strangerPushName: string | null = null;
+        for (const jid of jidCandidates) {
+          const sName = strangerProfileNamesByJid.get(jid);
+          if (sName) { strangerPushName = sName; break; }
+        }
+        if (!strangerPushName) {
+          for (const mc of mergedChats) {
+            const cName = mc.pushName || mc.contact?.pushName || mc.lastMessage?.pushName;
+            if (isValidContactName(cName)) { strangerPushName = cName.trim(); break; }
           }
         }
 
@@ -2023,6 +1962,7 @@ export const whatsappService = {
           allJids: jidCandidates,
           name: resolvedName,
           pushName: resolvedName,
+          profilePushName: strangerPushName,
           hasHumanName,
           phone: formattedPhone,
           rawPhone: rawPhone,
@@ -2199,9 +2139,7 @@ export const whatsappService = {
         )
       );
 
-      const storedNames = loadLocalCache(`3c_name_cache_${sessionName}`);
       const storedLids = loadLocalCache(`3c_lid_map_${sessionName}`);
-      let namesUpdated = false;
       let lidsUpdated = false;
 
       for (const res of results) {
@@ -2245,16 +2183,6 @@ export const whatsappService = {
                 ? m.pushName.trim()
                 : (!m.key?.fromMe && fallbackExtractedName ? fallbackExtractedName : undefined);
 
-              if (validSender) {
-                for (const j of jidList) {
-                  nameMemoryCache.set(j, validSender);
-                  if (storedNames[j] !== validSender) {
-                    storedNames[j] = validSender;
-                    namesUpdated = true;
-                  }
-                }
-              }
-
               const msgStatus = extractMessageStatus(m);
 
               return {
@@ -2280,9 +2208,6 @@ export const whatsappService = {
 
       if (lidsUpdated) {
         saveLocalCache(`3c_lid_map_${sessionName}`, storedLids);
-      }
-      if (namesUpdated) {
-        saveLocalCache(`3c_name_cache_${sessionName}`, storedNames);
       }
     } catch (err) {
       console.warn('Could not fetch messages from Evolution API:', err);
@@ -2802,7 +2727,7 @@ export const whatsappService = {
   /**
    * Connects the instance (supports demo one-click or QR code scanning)
    */
-  async setInstanceConnected(instanceId: string, phoneNumber: string = '(11) 96620-0052'): Promise<void> {
+  async setInstanceConnected(instanceId: string, phoneNumber: string = '(11) 91417-2592'): Promise<void> {
     const cleanSessionName = DEFAULT_SESSION_NAME;
     const localKey = `robusty_wa_instance_${cleanSessionName}`;
     const cached = loadLocalCache(localKey) || {};
